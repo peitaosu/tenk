@@ -14,7 +14,7 @@ name = "tenk"
 path = "src/main.rs"
 
 [dependencies]
-tenk = { path = "../tenk" }
+tenk = { path = "../tenk", version = "0.1" }
 
 # Async runtime
 tokio = { version = "1.35", features = ["full", "io-std"] }
