@@ -1,18 +1,18 @@
 # 10K (tenk)
 
-English | [简体中文](README.zh-CN.md)
+[English](README.md) | 简体中文
 
-> The market index will raise to 10K!
+> 大盘还要上去，要涨到一万点！
 
-Multi-source market data library and CLI for Chinese stocks, ETFs, and bonds.
+多数据源行情数据库和命令行工具，支持 A 股、ETF 和可转债。
 
-## Build
+## 构建
 
 ```bash
 cargo build --release
 ```
 
-## Library
+## 库
 
 ```toml
 [dependencies]
@@ -27,39 +27,39 @@ let client = DataClient::new().with_source(EastMoneySource::default());
 let prices = client.get_market_current(&["600519"]).await?;
 ```
 
-📖 [Library Documentation](tenk/README.md)
+📖 [库文档](tenk/README.md)
 
-## CLI
+## 命令行
 
 ```bash
-# Stock quote
+# 股票行情
 tenk stock quote 600519
 
-# K-line data
+# K线数据
 tenk stock kline 600519 -l 10
 
-# ETF quote
+# ETF行情
 tenk etf quote 510300
 
-# Bond top gainers
+# 可转债涨幅榜
 tenk bond quote --top-gainers 10
 
-# Output as JSON/CSV
+# 输出为 JSON/CSV
 tenk stock quote 600519 -f json
 tenk stock list -f csv > stocks.csv
 ```
 
-📖 [CLI Documentation](tenk-cli/README.md)
+📖 [命令行文档](tenk-cli/README.md)
 
-## MCP Server
+## MCP 服务
 
-Run as MCP server for AI assistants:
+作为 MCP 服务运行，供 AI 助手调用：
 
 ```bash
 tenk --mcp
 ```
 
-Add to Cursor `mcp.json`:
+添加到 Cursor `mcp.json`：
 ```json
 {
   "mcpServers": {
@@ -71,8 +71,9 @@ Add to Cursor `mcp.json`:
 }
 ```
 
-📖 [MCP Tools Reference](tenk-cli/README.md#available-mcp-tools)
+📖 [MCP 工具列表](tenk-cli/README.md#available-mcp-tools)
 
-## License
+## 开源许可
 
 MIT
+

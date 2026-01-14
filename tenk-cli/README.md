@@ -1,6 +1,54 @@
 # tenk-cli
 
-A command-line interface for fetching market data from multiple sources using the `tenk` library.
+A command-line interface and MCP server for fetching market data from multiple sources.
+
+## Build and Run
+
+```bash
+# Build
+cargo build --release
+
+# Run
+./target/release/tenk --help
+```
+
+## MCP Server
+
+Run as MCP server:
+```bash
+tenk --mcp
+```
+
+### Cursor Configuration
+
+```json
+{
+  "mcpServers": {
+    "tenk": {
+      "command": "/path/to/tenk",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `stock_quote` | Get current quotes for stocks |
+| `stock_kline` | Get historical K-line data |
+| `stock_minute` | Get intraday minute data |
+| `stock_orderbook` | Get order book (bid/ask) |
+| `stock_ticks` | Get tick-by-tick trades |
+| `stock_info` | Get stock details |
+| `stock_list` | List all stock codes |
+| `etf_quote` | Get current ETF quotes |
+| `etf_kline` | Get ETF K-line data |
+| `etf_minute` | Get ETF minute data |
+| `etf_list` | List all ETF codes |
+| `bond_quote` | Get bond quotes (with top gainers/losers/volume filters) |
+| `bond_list` | List convertible bonds |
 
 ## Usage
 

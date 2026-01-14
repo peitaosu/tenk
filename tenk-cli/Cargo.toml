@@ -17,7 +17,7 @@ path = "src/main.rs"
 tenk = { path = "../tenk" }
 
 # Async runtime
-tokio = { version = "1.35", features = ["full"] }
+tokio = { version = "1.35", features = ["full", "io-std"] }
 
 # CLI argument parsing
 clap = { version = "4.4", features = ["derive"] }
@@ -38,3 +38,7 @@ chrono = "0.4"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# MCP Server
+rmcp = { version = "0.12", features = ["server", "transport-io", "macros"] }
+schemars = "1"

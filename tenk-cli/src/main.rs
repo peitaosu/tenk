@@ -3,8 +3,10 @@ use clap::{Parser, Subcommand, ValueEnum};
 use tenk::sources::{EastMoneySource, SinaSource, THSSource};
 use tenk::{DataClient, KLineType};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing::Level;
 
 mod commands;
+mod mcp;
 mod output;
 
 use commands::{bond, etf, stock};
@@ -32,7 +34,10 @@ pub struct Cli {
     proxy: Option<String>,
 
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
+
+    #[arg(long)]
+    mcp: bool,
 }
 
 #[derive(Clone, Copy, ValueEnum, Debug, PartialEq)]
@@ -228,6 +233,22 @@ fn build_client(sources: &[Source]) -> DataClient {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    if cli.mcp {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::from_default_env()
+                    .add_directive(Level::INFO.into()),
+            )
+            .with_writer(std::io::stderr)
+            .init();
+
+        return mcp::run_server().await;
+    }
+
+    let command = cli.command.ok_or_else(|| {
+        anyhow::anyhow!("No command provided. Use --help for usage or --mcp to run as MCP server.")
+    })?;
+
     let filter = if cli.verbose { "debug" } else { "warn" };
     tracing_subscriber::registry()
         .with(
@@ -244,7 +265,7 @@ async fn main() -> Result<()> {
         file: cli.output_file,
     };
 
-    match cli.command {
+    match command {
         Commands::Stock { action } => stock::handle(action, &client, &output_config).await?,
         Commands::ETF { action } => etf::handle(action, &client, &output_config).await?,
         Commands::Bond { action } => bond::handle(action, &client, &output_config).await?,
