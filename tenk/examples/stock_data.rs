@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    println!("=== TenK Stock Data Example ===\n");
+    println!("=== tenk Stock Data Example ===\n");
 
     // Create client with all sources for fallback
     let client = DataClient::new()

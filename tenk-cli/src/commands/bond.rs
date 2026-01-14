@@ -7,11 +7,11 @@ use tenk::{BondCurrentData, ConvertibleBondCode, DataClient};
 
 use crate::output::{
     change_pct_cell, format_amount, format_volume, price_cell, print_output, right_cell,
-    truncate_str, OutputFormat, TableRow,
+    OutputConfig, TableRow,
 };
 use crate::BondAction;
 
-pub async fn handle(action: BondAction, client: &DataClient, format: OutputFormat) -> Result<()> {
+pub async fn handle(action: BondAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
     match action {
         BondAction::Quote {
             symbols,
@@ -35,7 +35,7 @@ pub async fn handle(action: BondAction, client: &DataClient, format: OutputForma
                         .unwrap_or(std::cmp::Ordering::Equal)
                 });
                 data.truncate(n);
-                println!("{}", format!("Top {} Gainers:", n).red().bold());
+                eprintln!("{}", format!("Top {} Gainers:", n).red().bold());
             } else if let Some(n) = top_losers {
                 data.retain(|b| b.change_pct < 0.0 && b.price > 0.0);
                 data.sort_by(|a, b| {
@@ -44,15 +44,15 @@ pub async fn handle(action: BondAction, client: &DataClient, format: OutputForma
                         .unwrap_or(std::cmp::Ordering::Equal)
                 });
                 data.truncate(n);
-                println!("{}", format!("Top {} Losers:", n).green().bold());
+                eprintln!("{}", format!("Top {} Losers:", n).green().bold());
             } else if let Some(n) = top_volume {
                 data.retain(|b| b.volume > 0 && b.price > 0.0);
                 data.sort_by(|a, b| b.volume.cmp(&a.volume));
                 data.truncate(n);
-                println!("{}", format!("Top {} by Volume:", n).cyan().bold());
+                eprintln!("{}", format!("Top {} by Volume:", n).cyan().bold());
             }
 
-            print_output(&data, format);
+            print_output(&data, config);
         }
         BondAction::List { limit } => {
             let mut data = client.get_all_bond_codes().await?;
@@ -61,7 +61,7 @@ pub async fn handle(action: BondAction, client: &DataClient, format: OutputForma
                 data.truncate(n);
             }
 
-            print_output(&data, format);
+            print_output(&data, config);
         }
     }
     Ok(())
@@ -82,7 +82,7 @@ impl TableRow for BondCurrentData {
     fn row(&self) -> Vec<Cell> {
         vec![
             Cell::new(&self.bond_code),
-            Cell::new(truncate_str(&self.bond_name, 15)),
+            Cell::new(&self.bond_name),
             price_cell(self.price),
             change_pct_cell(self.change_pct),
             right_cell(format_volume(self.volume)),
@@ -105,7 +105,7 @@ impl TableRow for ConvertibleBondCode {
     fn row(&self) -> Vec<Cell> {
         vec![
             Cell::new(&self.bond_code),
-            Cell::new(truncate_str(&self.bond_name, 15)),
+            Cell::new(&self.bond_name),
             Cell::new(&self.stock_code),
             right_cell(
                 self.convert_price

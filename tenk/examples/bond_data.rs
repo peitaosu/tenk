@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    println!("=== TenK Convertible Bond Data Example ===\n");
+    println!("=== tenk Convertible Bond Data Example ===\n");
 
     // Create client with bond sources
     let client = DataClient::new()

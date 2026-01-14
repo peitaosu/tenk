@@ -4,35 +4,122 @@ use clap::ValueEnum;
 use colored::Colorize;
 use comfy_table::{presets::UTF8_FULL_CONDENSED, Cell, CellAlignment, Color, ContentArrangement, Table};
 use serde::Serialize;
-use std::io;
+use std::fs::File;
+use std::io::{self, BufWriter, Write};
 
 #[derive(Clone, Copy, ValueEnum, Debug, Default)]
 pub enum OutputFormat {
-    Json,
-
+    JSON,
     #[default]
     Table,
-
-    Csv,
+    CSV,
 }
 
-pub fn print_output<T: Serialize + TableRow>(data: &[T], format: OutputFormat) {
-    match format {
-        OutputFormat::Json => print_json(data),
-        OutputFormat::Table => print_table::<T>(data),
-        OutputFormat::Csv => print_csv::<T>(data),
+#[derive(Clone, Debug)]
+pub struct OutputConfig {
+    pub format: OutputFormat,
+    pub file: Option<String>,
+}
+
+pub fn print_output<T: Serialize + TableRow>(data: &[T], config: &OutputConfig) {
+    if let Some(ref path) = config.file {
+        if let Err(e) = write_output_to_file(data, config.format, path) {
+            eprintln!("{}: {}", "File write error".red(), e);
+        }
+    } else {
+        match config.format {
+            OutputFormat::JSON => print_json(data),
+            OutputFormat::Table => print_table::<T>(data),
+            OutputFormat::CSV => print_csv::<T>(data),
+        }
     }
 }
 
-pub fn print_single<T: Serialize + SingleDisplay>(data: &T, format: OutputFormat) {
+pub fn print_single<T: Serialize + SingleDisplay>(data: &T, config: &OutputConfig) {
+    if let Some(ref path) = config.file {
+        if let Err(e) = write_single_to_file(data, config.format, path) {
+            eprintln!("{}: {}", "File write error".red(), e);
+        }
+    } else {
+        match config.format {
+            OutputFormat::JSON => {
+                if let Ok(json) = serde_json::to_string_pretty(data) {
+                    println!("{}", json);
+                }
+            }
+            OutputFormat::Table | OutputFormat::CSV => data.print_single(),
+        }
+    }
+}
+
+fn write_output_to_file<T: Serialize + TableRow>(
+    data: &[T],
+    format: OutputFormat,
+    path: &str,
+) -> io::Result<()> {
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(file);
+
     match format {
-        OutputFormat::Json => {
-            if let Ok(json) = serde_json::to_string_pretty(data) {
-                println!("{}", json);
+        OutputFormat::JSON => {
+            let json = serde_json::to_string_pretty(data)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            writeln!(writer, "{}", json)?;
+        }
+        OutputFormat::Table => {
+            if data.is_empty() {
+                writeln!(writer, "No data available.")?;
+            } else {
+                let mut table = Table::new();
+                table
+                    .load_preset(UTF8_FULL_CONDENSED)
+                    .set_content_arrangement(ContentArrangement::Dynamic);
+                table.set_header(T::headers());
+                for item in data {
+                    table.add_row(item.row());
+                }
+                writeln!(writer, "{}", table)?;
             }
         }
-        OutputFormat::Table | OutputFormat::Csv => data.print_single(),
+        OutputFormat::CSV => {
+            writer.write_all(&[0xEF, 0xBB, 0xBF])?;
+            let mut csv_writer = csv::Writer::from_writer(writer);
+            for item in data {
+                csv_writer
+                    .serialize(item)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            }
+            csv_writer.flush()?;
+            eprintln!("{} {}", "Saved to:".green(), path);
+            return Ok(());
+        }
     }
+
+    writer.flush()?;
+    eprintln!("{} {}", "Saved to:".green(), path);
+    Ok(())
+}
+
+fn write_single_to_file<T: Serialize>(data: &T, format: OutputFormat, path: &str) -> io::Result<()> {
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(file);
+
+    match format {
+        OutputFormat::JSON => {
+            let json = serde_json::to_string_pretty(data)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            writeln!(writer, "{}", json)?;
+        }
+        OutputFormat::Table | OutputFormat::CSV => {
+            let json = serde_json::to_string_pretty(data)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            writeln!(writer, "{}", json)?;
+        }
+    }
+
+    writer.flush()?;
+    eprintln!("{} {}", "Saved to:".green(), path);
+    Ok(())
 }
 
 fn print_json<T: Serialize>(data: &[T]) {
@@ -90,23 +177,11 @@ pub trait SingleDisplay {
     fn print_single(&self);
 }
 
-pub fn truncate_str(s: &str, max_len: usize) -> String {
-    let char_count = s.chars().count();
-    if char_count <= max_len {
-        s.to_string()
-    } else {
-        format!(
-            "{}...",
-            s.chars().take(max_len.saturating_sub(3)).collect::<String>()
-        )
-    }
-}
-
 pub fn format_volume(vol: u64) -> String {
     if vol >= 100_000_000 {
-        format!("{:.2}亿", vol as f64 / 100_000_000.0)
+        format!("{} ({:.2}亿)", vol, vol as f64 / 100_000_000.0)
     } else if vol >= 10_000 {
-        format!("{:.2}万", vol as f64 / 10_000.0)
+        format!("{} ({:.2}万)", vol, vol as f64 / 10_000.0)
     } else {
         format!("{}", vol)
     }
@@ -114,9 +189,9 @@ pub fn format_volume(vol: u64) -> String {
 
 pub fn format_amount(amount: f64) -> String {
     if amount >= 100_000_000.0 {
-        format!("{:.2}亿", amount / 100_000_000.0)
+        format!("{:.0} ({:.2}亿)", amount, amount / 100_000_000.0)
     } else if amount >= 10_000.0 {
-        format!("{:.2}万", amount / 10_000.0)
+        format!("{:.0} ({:.2}万)", amount, amount / 10_000.0)
     } else {
         format!("{:.2}", amount)
     }

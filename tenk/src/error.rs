@@ -1,38 +1,38 @@
-//! Error types for TenK.
+//! Error types for tenk.
 
 use thiserror::Error;
 
 /// Error type for data operations.
 #[derive(Error, Debug)]
 pub enum DataError {
-    #[error("Network error: {0}")]
+    #[error("Network Error: {0}")]
     Network(#[from] reqwest::Error),
 
-    #[error("Parse error: {0}")]
+    #[error("Parse Error: {0}")]
     Parse(#[from] serde_json::Error),
 
-    #[error("Source unavailable: {0}")]
+    #[error("Source Unavailable: {0}")]
     SourceUnavailable(String),
 
-    #[error("Not supported: {0}")]
+    #[error("Not Supported: {0}")]
     NotSupported(String),
 
-    #[error("No data available from any source")]
+    #[error("No Data Available")]
     NoDataAvailable,
 
-    #[error("Invalid stock code: {0}")]
+    #[error("Invalid Stock Code: {0}")]
     InvalidStockCode(String),
 
-    #[error("Rate limit exceeded: {0}")]
+    #[error("Rate Limit Exceeded: {0}")]
     RateLimitExceeded(String),
 
-    #[error("Invalid date: {0}")]
+    #[error("Invalid Date: {0}")]
     InvalidDate(String),
 
-    #[error("Configuration error: {0}")]
+    #[error("Configuration Error: {0}")]
     Config(String),
 
-    #[error("IO error: {0}")]
+    #[error("IO Error: {0}")]
     Io(#[from] std::io::Error),
 
     #[error("{0}")]

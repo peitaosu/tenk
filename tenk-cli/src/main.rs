@@ -19,8 +19,11 @@ pub struct Cli {
     #[arg(short, long, global = true)]
     verbose: bool,
 
-    #[arg(short, long, global = true, value_enum, default_value = "table")]
-    output: OutputFormat,
+    #[arg(short = 'f', long = "format", global = true, value_enum, default_value = "table")]
+    format: OutputFormat,
+
+    #[arg(short = 'o', long = "output", global = true)]
+    output_file: Option<String>,
 
     #[arg(short, long, global = true, value_enum, default_values_t = vec![Source::Eastmoney, Source::Sina, Source::Ths])]
     source: Vec<Source>,
@@ -73,9 +76,9 @@ enum Commands {
         action: StockAction,
     },
 
-    Etf {
+    ETF {
         #[command(subcommand)]
-        action: EtfAction,
+        action: ETFAction,
     },
 
     Bond {
@@ -137,7 +140,7 @@ pub enum StockAction {
 }
 
 #[derive(Subcommand)]
-pub enum EtfAction {
+pub enum ETFAction {
     Quote {
         #[arg(required = true)]
         symbols: Vec<String>,
@@ -236,10 +239,15 @@ async fn main() -> Result<()> {
 
     let client = build_client(&cli.source);
 
+    let output_config = output::OutputConfig {
+        format: cli.format,
+        file: cli.output_file,
+    };
+
     match cli.command {
-        Commands::Stock { action } => stock::handle(action, &client, cli.output).await?,
-        Commands::Etf { action } => etf::handle(action, &client, cli.output).await?,
-        Commands::Bond { action } => bond::handle(action, &client, cli.output).await?,
+        Commands::Stock { action } => stock::handle(action, &client, &output_config).await?,
+        Commands::ETF { action } => etf::handle(action, &client, &output_config).await?,
+        Commands::Bond { action } => bond::handle(action, &client, &output_config).await?,
     }
 
     Ok(())

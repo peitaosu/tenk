@@ -397,37 +397,68 @@ impl StockInfoSource for EastMoneySource {
     async fn get_stock_info(&self, stock_code: &str) -> DataResult<StockInfo> {
         let exchange = Exchange::from_stock_code(stock_code);
         let secucode = format!("{}.{}", stock_code, exchange);
-        let secid = Self::get_secid(stock_code);
-
-        let quote_url = format!(
-            "https://push2.eastmoney.com/api/qt/stock/get?secid={}&fields=f58",
-            secid
-        );
 
         #[derive(Deserialize)]
-        struct QuoteData {
-            #[serde(default)]
-            f58: Option<String>,
+        struct OrgInfoItem {
+            #[serde(rename = "ORG_NAME", default)]
+            org_name: Option<String>,
+            #[serde(rename = "SECURITY_NAME_ABBR", default)]
+            short_name: Option<String>,
+            #[serde(rename = "EM2016", default)]
+            industry: Option<String>,
+            #[serde(rename = "LISTING_DATE", default)]
+            listing_date: Option<String>,
         }
 
         #[derive(Deserialize)]
-        struct QuoteResponse {
-            data: Option<QuoteData>,
+        struct OrgInfoResult {
+            data: Option<Vec<OrgInfoItem>>,
         }
 
-        let short_name = match self.request.get_json::<QuoteResponse>(&quote_url).await {
-            Ok(response) => response
-                .data
-                .and_then(|d| d.f58)
-                .unwrap_or_default(),
-            Err(_) => String::new(),
-        };
+        #[derive(Deserialize)]
+        struct OrgInfoResponse {
+            result: Option<OrgInfoResult>,
+        }
 
         let url = "https://datacenter.eastmoney.com/securities/api/data/v1/get";
-        let params = [
+        let org_params = [
+            ("reportName", "RPT_F10_ORG_BASICINFO"),
+            ("columns", "ORG_NAME,SECURITY_NAME_ABBR,EM2016,LISTING_DATE"),
+            ("filter", &format!("(SECUCODE=\"{}\")", secucode)),
+            ("pageNumber", "1"),
+            ("pageSize", "1"),
+            ("source", "HSF10"),
+            ("client", "PC"),
+        ];
+
+        let org_response: Result<OrgInfoResponse, _> =
+            self.request.get_json_with_params(url, &org_params).await;
+
+        let (full_name, short_name, industry, list_date) = match org_response {
+            Ok(response) => response
+                .result
+                .and_then(|r| r.data)
+                .and_then(|d| d.into_iter().next())
+                .map(|item| {
+                    let list_date = item.listing_date.and_then(|s| {
+                        s.split(' ').next().and_then(|date_str| {
+                            chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok()
+                        })
+                    });
+                    (
+                        item.org_name.unwrap_or_default(),
+                        item.short_name.unwrap_or_default(),
+                        item.industry,
+                        list_date,
+                    )
+                })
+                .unwrap_or_default(),
+            Err(_) => (String::new(), String::new(), None, None),
+        };
+
+        let shares_params = [
             ("reportName", "RPT_F10_EH_EQUITY"),
-            ("columns", "SECUCODE,SECURITY_CODE,END_DATE,TOTAL_SHARES,LIMITED_SHARES,LISTED_A_SHARES"),
-            ("quoteColumns", ""),
+            ("columns", "TOTAL_SHARES,LISTED_A_SHARES"),
             ("filter", &format!("(SECUCODE=\"{}\")", secucode)),
             ("pageNumber", "1"),
             ("pageSize", "1"),
@@ -437,43 +468,33 @@ impl StockInfoSource for EastMoneySource {
             ("client", "PC"),
         ];
 
-        let response: StockInfoResponse = match self.request.get_json_with_params(url, &params).await {
-            Ok(r) => r,
-            Err(_) => {
-                return Ok(StockInfo {
-                    stock_code: stock_code.to_string(),
-                    full_name: String::new(),
-                    short_name,
-                    exchange,
-                    industry: None,
-                    total_shares: None,
-                    circulating_shares: None,
-                    list_date: None,
-                });
-            }
-        };
+        let shares_response: Result<StockInfoResponse, _> =
+            self.request.get_json_with_params(url, &shares_params).await;
 
-        let (total_shares, circulating_shares) = response
-            .result
-            .and_then(|r| r.data)
-            .and_then(|d| d.first().cloned())
-            .map(|item| {
-                (
-                    item.total_shares.map(|v| v as u64),
-                    item.listed_a_shares.map(|v| v as u64),
-                )
-            })
-            .unwrap_or((None, None));
+        let (total_shares, circulating_shares) = match shares_response {
+            Ok(response) => response
+                .result
+                .and_then(|r| r.data)
+                .and_then(|d| d.first().cloned())
+                .map(|item| {
+                    (
+                        item.total_shares.map(|v| v as u64),
+                        item.listed_a_shares.map(|v| v as u64),
+                    )
+                })
+                .unwrap_or((None, None)),
+            Err(_) => (None, None),
+        };
 
         Ok(StockInfo {
             stock_code: stock_code.to_string(),
-            full_name: String::new(),
+            full_name,
             short_name,
             exchange,
-            industry: None,
+            industry,
             total_shares,
             circulating_shares,
-            list_date: None,
+            list_date,
         })
     }
 }

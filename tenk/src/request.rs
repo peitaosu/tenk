@@ -29,7 +29,7 @@ impl Default for RequestConfig {
             request_wait_ms: None,
             timeout: Duration::from_secs(30),
             proxy: None,
-            user_agent: format!("TenK/{}", env!("CARGO_PKG_VERSION")),
+            user_agent: format!("tenk/{}", env!("CARGO_PKG_VERSION")),
             headers: None,
         }
     }

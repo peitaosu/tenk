@@ -5,7 +5,7 @@ use tenk::{DataClient, KLineType};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== TenK Quick Start ===\n");
+    println!("=== tenk Quick Start ===\n");
 
     // Create client and add sources
     let client = DataClient::new()

@@ -3,11 +3,15 @@ name = "tenk-cli"
 version = "0.1.0"
 edition = "2024"
 authors = ["Tony Su <peitaosu@163.com>"]
-description = "CLI wrapper for tenk - fetch market data from multiple sources"
+description = "10K - CLI for tenk, fetching market data from multiple sources"
 license = "MIT"
 repository = "https://github.com/peitaosu/tenk"
 keywords = ["finance", "stock", "data", "cli", "market"]
 categories = ["command-line-utilities", "finance"]
+
+[[bin]]
+name = "tenk"
+path = "src/main.rs"
 
 [dependencies]
 tenk = { path = "../tenk" }

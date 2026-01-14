@@ -10,16 +10,16 @@ use tenk::{
 
 use crate::output::{
     change_pct_cell, format_amount, format_volume, price_cell, print_output, print_single,
-    right_cell, truncate_str, OutputFormat, SingleDisplay, TableRow,
+    right_cell, OutputConfig, SingleDisplay, TableRow,
 };
 use crate::StockAction;
 
-pub async fn handle(action: StockAction, client: &DataClient, format: OutputFormat) -> Result<()> {
+pub async fn handle(action: StockAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
     match action {
         StockAction::Quote { symbols } => {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let data = client.get_market_current(&refs).await?;
-            print_output(&data, format);
+            print_output(&data, config);
         }
         StockAction::Kline {
             symbol,
@@ -44,24 +44,24 @@ pub async fn handle(action: StockAction, client: &DataClient, format: OutputForm
                 }
             }
 
-            print_output(&data, format);
+            print_output(&data, config);
         }
         StockAction::Minute { symbol } => {
             let data = client.get_market_min(&symbol).await?;
-            print_output(&data, format);
+            print_output(&data, config);
         }
         StockAction::Orderbook { symbol } => {
             let data = client.get_order_book(&symbol).await?;
-            print_single(&data, format);
+            print_single(&data, config);
         }
         StockAction::Ticks { symbol, limit } => {
             let mut data = client.get_ticks(&symbol).await?;
             data.truncate(limit);
-            print_output(&data, format);
+            print_output(&data, config);
         }
         StockAction::Info { symbol } => {
             let data = client.get_stock_info(&symbol).await?;
-            print_single(&data, format);
+            print_single(&data, config);
         }
         StockAction::List { exchange, limit } => {
             let mut data = client.get_all_codes().await?;
@@ -75,7 +75,7 @@ pub async fn handle(action: StockAction, client: &DataClient, format: OutputForm
                 data.truncate(n);
             }
 
-            print_output(&data, format);
+            print_output(&data, config);
         }
     }
     Ok(())
@@ -96,7 +96,7 @@ impl TableRow for CurrentMarketData {
     fn row(&self) -> Vec<Cell> {
         vec![
             Cell::new(&self.stock_code),
-            Cell::new(truncate_str(&self.short_name, 12)),
+            Cell::new(&self.short_name),
             price_cell(self.price),
             change_pct_cell(self.change_pct),
             right_cell(format_volume(self.volume)),
@@ -192,7 +192,7 @@ impl TableRow for StockCode {
     fn row(&self) -> Vec<Cell> {
         vec![
             Cell::new(&self.stock_code),
-            Cell::new(truncate_str(&self.short_name, 15)),
+            Cell::new(&self.short_name),
             Cell::new(self.exchange.to_string()),
         ]
     }

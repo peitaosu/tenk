@@ -1,6 +1,8 @@
-# 10K (TenK)
+# 10K (tenk)
 
-The market index will raise to 10K! A Rust library for fetching market data from multiple sources.
+> The market index will raise to 10K! 大盘还要上去，要涨到一万点！
+
+A Rust library for fetching market data from multiple sources.
 
 ## Installation
 
@@ -109,28 +111,28 @@ let bonds = client
 
 ```bash
 # Stock quotes
-tenk-cli stock quote 600519 300059
+tenk stock quote 600519 300059
 
 # K-line data (last 10 daily records)
-tenk-cli stock kline 600519 -l 10
+tenk stock kline 600519 -l 10
 
 # Weekly K-line
-tenk-cli stock kline 600519 -k weekly -l 5
+tenk stock kline 600519 -k weekly -l 5
 
 # Stock info
-tenk-cli stock info 600519
+tenk stock info 600519
 
 # ETF quotes
-tenk-cli etf quote 510300 159915
+tenk etf quote 510300 159915
 
 # Bond top gainers
-tenk-cli bond quote --top-gainers 10
+tenk bond quote --top-gainers 10
 
 # Output as JSON
-tenk-cli stock quote 600519 -o json
+tenk stock quote 600519 -o json
 
 # Output as CSV
-tenk-cli stock list -l 100 -o csv > stocks.csv
+tenk stock list -l 100 -o csv > stocks.csv
 ```
 
 See [tenk-cli/README.md](tenk-cli/README.md) for full documentation.

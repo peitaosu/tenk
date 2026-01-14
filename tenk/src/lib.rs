@@ -1,4 +1,4 @@
-//! TenK - Multi-source market data library for Rust.
+//! tenk - Multi-source market data library for Rust.
 
 pub mod client;
 pub mod data;

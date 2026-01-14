@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    println!("=== TenK ETF Data Example ===\n");
+    println!("=== tenk ETF Data Example ===\n");
 
     // Create client with ETF sources
     let client = DataClient::new()

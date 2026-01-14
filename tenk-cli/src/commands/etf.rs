@@ -6,18 +6,18 @@ use tenk::{DataClient, ETFCode, ETFCurrentData, ETFMarketData, ETFMinuteData};
 
 use crate::output::{
     change_pct_cell, format_amount, format_volume, price_cell_3, print_output, right_cell,
-    truncate_str, OutputFormat, TableRow,
+    OutputConfig, TableRow,
 };
-use crate::EtfAction;
+use crate::ETFAction;
 
-pub async fn handle(action: EtfAction, client: &DataClient, format: OutputFormat) -> Result<()> {
+pub async fn handle(action: ETFAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
     match action {
-        EtfAction::Quote { symbols } => {
+        ETFAction::Quote { symbols } => {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let data = client.get_etf_current(&refs).await?;
-            print_output(&data, format);
+            print_output(&data, config);
         }
-        EtfAction::Kline {
+        ETFAction::Kline {
             symbol,
             kline_type,
             start,
@@ -40,13 +40,13 @@ pub async fn handle(action: EtfAction, client: &DataClient, format: OutputFormat
                 }
             }
 
-            print_output(&data, format);
+            print_output(&data, config);
         }
-        EtfAction::Minute { symbol } => {
+        ETFAction::Minute { symbol } => {
             let data = client.get_etf_min(&symbol).await?;
-            print_output(&data, format);
+            print_output(&data, config);
         }
-        EtfAction::List { exchange, limit } => {
+        ETFAction::List { exchange, limit } => {
             let mut data = client.get_all_etf_codes().await?;
 
             if let Some(ex) = exchange {
@@ -58,7 +58,7 @@ pub async fn handle(action: EtfAction, client: &DataClient, format: OutputFormat
                 data.truncate(n);
             }
 
-            print_output(&data, format);
+            print_output(&data, config);
         }
     }
     Ok(())
@@ -80,7 +80,7 @@ impl TableRow for ETFCurrentData {
         let change_pct = self.change_pct.unwrap_or(0.0);
         vec![
             Cell::new(&self.fund_code),
-            Cell::new(truncate_str(&self.short_name, 15)),
+            Cell::new(&self.short_name),
             price_cell_3(self.price),
             change_pct_cell(change_pct),
             right_cell(format_volume(self.volume)),
@@ -153,7 +153,7 @@ impl TableRow for ETFCode {
     fn row(&self) -> Vec<Cell> {
         vec![
             Cell::new(&self.fund_code),
-            Cell::new(truncate_str(&self.short_name, 20)),
+            Cell::new(&self.short_name),
             Cell::new(self.exchange.to_string()),
             right_cell(
                 self.net_value
