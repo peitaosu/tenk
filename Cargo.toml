@@ -1,0 +1,3 @@
+[workspace]
+members = ["tenk", "tenk-cli"]
+resolver = "3"

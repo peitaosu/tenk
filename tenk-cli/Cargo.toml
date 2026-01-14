@@ -1,0 +1,36 @@
+[package]
+name = "tenk-cli"
+version = "0.1.0"
+edition = "2024"
+authors = ["Tony Su <peitaosu@163.com>"]
+description = "CLI wrapper for tenk - fetch market data from multiple sources"
+license = "MIT"
+repository = "https://github.com/peitaosu/tenk"
+keywords = ["finance", "stock", "data", "cli", "market"]
+categories = ["command-line-utilities", "finance"]
+
+[dependencies]
+tenk = { path = "../tenk" }
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# CLI argument parsing
+clap = { version = "4.4", features = ["derive"] }
+
+# Serialization for output
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+csv = "1.4"
+comfy-table = "7"
+colored = "2"
+
+# Error handling
+anyhow = "1.0"
+
+# Date/time
+chrono = "0.4"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

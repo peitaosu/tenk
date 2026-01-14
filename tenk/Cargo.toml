@@ -1,0 +1,54 @@
+[package]
+name = "tenk"
+version = "0.1.0"
+edition = "2024"
+authors = ["Tony Su <peitaosu@163.com>"]
+description = "10K - A Rust library for fetching market data from multiple sources"
+license = "MIT"
+repository = "https://github.com/peitaosu/tenk"
+keywords = ["finance", "stock", "data", "api", "market"]
+categories = ["api-bindings", "finance"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Async traits
+async-trait = "0.1"
+
+# Logging
+tracing = "0.1"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[example]]
+name = "quick_start"
+path = "examples/quick_start.rs"
+
+[[example]]
+name = "stock_data"
+path = "examples/stock_data.rs"
+
+[[example]]
+name = "etf_data"
+path = "examples/etf_data.rs"
+
+[[example]]
+name = "bond_data"
+path = "examples/bond_data.rs"
