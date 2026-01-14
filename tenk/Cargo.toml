@@ -1,11 +1,12 @@
 [package]
 name = "tenk"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 authors = ["Tony Su <peitaosu@163.com>"]
 description = "10K - A Rust library for fetching market data from multiple sources"
-license = "MIT"
-repository = "https://github.com/peitaosu/tenk"
+readme = "README.md"
 keywords = ["finance", "stock", "data", "api", "market"]
 categories = ["api-bindings", "finance"]
 
