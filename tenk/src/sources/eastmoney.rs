@@ -181,7 +181,10 @@ impl StockMarketSource for EastMoneySource {
 
         let params = [
             ("fields1", "f1,f2,f3,f4,f5,f6"),
-            ("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116"),
+            (
+                "fields2",
+                "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116",
+            ),
             ("ut", "7eea3edcaed734bea9cbfc24409ed989"),
             ("klt", &klt.to_string()),
             ("fqt", "1"),
@@ -386,19 +389,23 @@ impl StockInfoSource for EastMoneySource {
                 ("fltt", "2".to_string()),
                 ("invt", "2".to_string()),
                 ("fid", "f3".to_string()),
-                ("fs", "m:0 t:6,m:0 t:80,m:1 t:2,m:1 t:23,m:0 t:81 s:2048".to_string()),
+                (
+                    "fs",
+                    "m:0 t:6,m:0 t:80,m:1 t:2,m:1 t:23,m:0 t:81 s:2048".to_string(),
+                ),
                 ("fields", "f12,f14".to_string()),
             ];
 
             debug!("Fetching stock codes page {} from East Money", page);
 
-            let response: StockListResponse = match self.request.get_json_with_params(url, &params).await {
-                Ok(r) => r,
-                Err(e) => {
-                    warn!("Failed to fetch page {}: {}", page, e);
-                    break;
-                }
-            };
+            let response: StockListResponse =
+                match self.request.get_json_with_params(url, &params).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        warn!("Failed to fetch page {}: {}", page, e);
+                        break;
+                    }
+                };
 
             let items = match response.data.and_then(|d| d.diff) {
                 Some(items) if !items.is_empty() => items,
@@ -554,13 +561,14 @@ impl FundInfoSource for EastMoneySource {
 
             debug!("Fetching ETF codes page {} from East Money", page);
 
-            let response: StockListResponse = match self.request.get_json_with_params(url, &params).await {
-                Ok(r) => r,
-                Err(e) => {
-                    warn!("Failed to fetch ETF page {}: {}", page, e);
-                    break;
-                }
-            };
+            let response: StockListResponse =
+                match self.request.get_json_with_params(url, &params).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        warn!("Failed to fetch ETF page {}: {}", page, e);
+                        break;
+                    }
+                };
 
             let items = match response.data.and_then(|d| d.diff) {
                 Some(items) if !items.is_empty() => items,
@@ -609,7 +617,10 @@ impl FundMarketSource for EastMoneySource {
 
         let params = [
             ("fields1", "f1,f2,f3,f4,f5,f6"),
-            ("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116"),
+            (
+                "fields2",
+                "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116",
+            ),
             ("ut", "7eea3edcaed734bea9cbfc24409ed989"),
             ("klt", &klt.to_string()),
             ("fqt", "1"),
@@ -930,7 +941,10 @@ impl BondInfoSource for EastMoneySource {
                 ("pageSize", &page_size.to_string()),
                 ("pageNumber", &page.to_string()),
                 ("reportName", "RPT_BOND_CB_LIST"),
-                ("columns", "SECURITY_CODE,SECURITY_NAME_ABBR,CONVERT_STOCK_CODE,SECURITY_SHORT_NAME,PUBLIC_START_DATE,ACTUAL_ISSUE_SCALE,LISTING_DATE,EXPIRE_DATE,TRANSFER_PRICE"),
+                (
+                    "columns",
+                    "SECURITY_CODE,SECURITY_NAME_ABBR,CONVERT_STOCK_CODE,SECURITY_SHORT_NAME,PUBLIC_START_DATE,ACTUAL_ISSUE_SCALE,LISTING_DATE,EXPIRE_DATE,TRANSFER_PRICE",
+                ),
                 ("quoteColumns", ""),
                 ("source", "WEB"),
                 ("client", "WEB"),
@@ -938,13 +952,14 @@ impl BondInfoSource for EastMoneySource {
 
             debug!("Fetching bond codes page {} from East Money", page);
 
-            let response: BondListResponse = match self.request.get_json_with_params(url, &params).await {
-                Ok(r) => r,
-                Err(e) => {
-                    warn!("Failed to fetch bond page {}: {}", page, e);
-                    break;
-                }
-            };
+            let response: BondListResponse =
+                match self.request.get_json_with_params(url, &params).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        warn!("Failed to fetch bond page {}: {}", page, e);
+                        break;
+                    }
+                };
 
             let items = match response.result.and_then(|r| r.data) {
                 Some(items) if !items.is_empty() => items,
@@ -954,15 +969,18 @@ impl BondInfoSource for EastMoneySource {
             let count = items.len();
 
             for item in items {
-                let sub_date = item.sub_date.as_ref().and_then(|s| {
-                    NaiveDate::parse_from_str(&s[..10], "%Y-%m-%d").ok()
-                });
-                let listing_date = item.listing_date.as_ref().and_then(|s| {
-                    NaiveDate::parse_from_str(&s[..10], "%Y-%m-%d").ok()
-                });
-                let expire_date = item.expire_date.as_ref().and_then(|s| {
-                    NaiveDate::parse_from_str(&s[..10], "%Y-%m-%d").ok()
-                });
+                let sub_date = item
+                    .sub_date
+                    .as_ref()
+                    .and_then(|s| NaiveDate::parse_from_str(&s[..10], "%Y-%m-%d").ok());
+                let listing_date = item
+                    .listing_date
+                    .as_ref()
+                    .and_then(|s| NaiveDate::parse_from_str(&s[..10], "%Y-%m-%d").ok());
+                let expire_date = item
+                    .expire_date
+                    .as_ref()
+                    .and_then(|s| NaiveDate::parse_from_str(&s[..10], "%Y-%m-%d").ok());
 
                 all_bonds.push(ConvertibleBondCode {
                     bond_code: item.bond_code,
@@ -988,7 +1006,10 @@ impl BondInfoSource for EastMoneySource {
 
 #[async_trait]
 impl BondMarketSource for EastMoneySource {
-    async fn get_bond_current(&self, bond_codes: Option<&[&str]>) -> DataResult<Vec<BondCurrentData>> {
+    async fn get_bond_current(
+        &self,
+        bond_codes: Option<&[&str]>,
+    ) -> DataResult<Vec<BondCurrentData>> {
         let url = "https://push2.eastmoney.com/api/qt/clist/get";
         let mut all_bonds = Vec::new();
         let page_size = 100;
@@ -1004,18 +1025,22 @@ impl BondMarketSource for EastMoneySource {
                 ("invt", "2".to_string()),
                 ("fid", "f3".to_string()),
                 ("fs", "b:MK0354".to_string()),
-                ("fields", "f2,f3,f4,f5,f6,f12,f14,f15,f16,f17,f18".to_string()),
+                (
+                    "fields",
+                    "f2,f3,f4,f5,f6,f12,f14,f15,f16,f17,f18".to_string(),
+                ),
             ];
 
             debug!("Fetching bond market page {} from East Money", page);
 
-            let response: BondQuoteResponse = match self.request.get_json_with_params(url, &params).await {
-                Ok(r) => r,
-                Err(e) => {
-                    warn!("Failed to fetch bond market page {}: {}", page, e);
-                    break;
-                }
-            };
+            let response: BondQuoteResponse =
+                match self.request.get_json_with_params(url, &params).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        warn!("Failed to fetch bond market page {}: {}", page, e);
+                        break;
+                    }
+                };
 
             let items = match response.data.and_then(|d| d.diff) {
                 Some(items) if !items.is_empty() => items,
@@ -1050,7 +1075,7 @@ impl BondMarketSource for EastMoneySource {
                 break;
             }
 
-                if let Some(codes) = bond_codes {
+            if let Some(codes) = bond_codes {
                 if all_bonds.len() >= codes.len() {
                     break;
                 }
@@ -1121,7 +1146,10 @@ impl NewsSource for EastMoneySource {
             ("p", &page.to_string()),
         ];
 
-        debug!("Fetching news from East Money: category={:?}, page={}", category, page);
+        debug!(
+            "Fetching news from East Money: category={:?}, page={}",
+            category, page
+        );
 
         let response: NewsResponse = self.request.get_json_with_params(url, &params).await?;
 
@@ -1133,11 +1161,12 @@ impl NewsSource for EastMoneySource {
         let mut articles = Vec::with_capacity(items.len());
 
         for item in items {
-            let publish_time = chrono::NaiveDateTime::parse_from_str(&item.showtime, "%Y-%m-%d %H:%M:%S")
-                .ok()
-                .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(Utc::now);
+            let publish_time =
+                chrono::NaiveDateTime::parse_from_str(&item.showtime, "%Y-%m-%d %H:%M:%S")
+                    .ok()
+                    .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(Utc::now);
 
             let comment_count: u32 = item.commentnum.parse().unwrap_or(0);
             let has_image = !item.image.is_empty() || !item.image_url.is_empty();
@@ -1154,7 +1183,11 @@ impl NewsSource for EastMoneySource {
                 title: item.title,
                 digest: item.digest,
                 url: item.url_w,
-                url_mobile: if item.url_m.is_empty() { None } else { Some(item.url_m) },
+                url_mobile: if item.url_m.is_empty() {
+                    None
+                } else {
+                    Some(item.url_m)
+                },
                 source: item.media_name,
                 publish_time,
                 category,
@@ -1195,17 +1228,57 @@ impl NewsSource for EastMoneySource {
             showtime: String,
             #[serde(default)]
             relatedstocks: Vec<RelatedStock>,
-            #[serde(default)]
+            #[serde(default, deserialize_with = "deserialize_images")]
             images: Vec<String>,
+        }
+
+        fn deserialize_images<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            use serde::de::{SeqAccess, Visitor};
+            use std::fmt;
+
+            struct ImagesVisitor;
+
+            impl<'de> Visitor<'de> for ImagesVisitor {
+                type Value = Vec<String>;
+
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("a sequence of strings or image objects")
+                }
+
+                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                where
+                    A: SeqAccess<'de>,
+                {
+                    let mut images = Vec::new();
+                    while let Some(value) = seq.next_element::<serde_json::Value>()? {
+                        match value {
+                            serde_json::Value::String(s) => images.push(s),
+                            serde_json::Value::Object(obj) => {
+                                if let Some(serde_json::Value::String(src)) = obj.get("src") {
+                                    images.push(src.clone());
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Ok(images)
+                }
+            }
+
+            deserializer.deserialize_seq(ImagesVisitor)
         }
 
         let response: ContentResponse = self.request.get_json_with_params(url, &params).await?;
 
-        let publish_time = chrono::NaiveDateTime::parse_from_str(&response.showtime, "%Y-%m-%d %H:%M:%S")
-            .ok()
-            .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(Utc::now);
+        let publish_time =
+            chrono::NaiveDateTime::parse_from_str(&response.showtime, "%Y-%m-%d %H:%M:%S")
+                .ok()
+                .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(Utc::now);
 
         let body_text = html2text::from_read(response.body.as_bytes(), usize::MAX)
             .unwrap_or_default()
@@ -1226,7 +1299,11 @@ impl NewsSource for EastMoneySource {
             body_html: response.body,
             body_text,
             source: response.source,
-            author: if response.author.is_empty() { None } else { Some(response.author) },
+            author: if response.author.is_empty() {
+                None
+            } else {
+                Some(response.author)
+            },
             publish_time,
             related_stocks,
             images: response.images,
@@ -1261,16 +1338,17 @@ impl NewsSource for EastMoneySource {
         });
 
         let callback = format!("jQuery_{}", chrono::Utc::now().timestamp_millis());
-        let params = [
-            ("cb", callback.as_str()),
-            ("param", &param.to_string()),
-        ];
+        let params = [("cb", callback.as_str()), ("param", &param.to_string())];
 
-        debug!("Searching news from East Money: keyword={}, page={}", keyword, page);
+        debug!(
+            "Searching news from East Money: keyword={}, page={}",
+            keyword, page
+        );
 
         let response = self.request.get_with_params(url, &params).await?;
-        let response_text = response.text().await
-            .map_err(|e| crate::error::DataError::custom(format!("Failed to read response: {}", e)))?;
+        let response_text = response.text().await.map_err(|e| {
+            crate::error::DataError::custom(format!("Failed to read response: {}", e))
+        })?;
 
         let prefix = format!("{}(", callback);
         let json_str = response_text
@@ -1309,8 +1387,9 @@ impl NewsSource for EastMoneySource {
             img_url: String,
         }
 
-        let search_response: SearchResponse = serde_json::from_str(json_str)
-            .map_err(|e| crate::error::DataError::custom(format!("Failed to parse search response: {}", e)))?;
+        let search_response: SearchResponse = serde_json::from_str(json_str).map_err(|e| {
+            crate::error::DataError::custom(format!("Failed to parse search response: {}", e))
+        })?;
 
         let items = search_response
             .result
@@ -1320,12 +1399,13 @@ impl NewsSource for EastMoneySource {
         let mut articles = Vec::with_capacity(items.len());
 
         for item in items {
-            let publish_time = chrono::NaiveDateTime::parse_from_str(&item.date, "%Y-%m-%d %H:%M:%S")
-                .or_else(|_| chrono::NaiveDateTime::parse_from_str(&item.date, "%Y-%m-%d"))
-                .ok()
-                .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(Utc::now);
+            let publish_time =
+                chrono::NaiveDateTime::parse_from_str(&item.date, "%Y-%m-%d %H:%M:%S")
+                    .or_else(|_| chrono::NaiveDateTime::parse_from_str(&item.date, "%Y-%m-%d"))
+                    .ok()
+                    .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(Utc::now);
 
             let has_image = !item.img_url.is_empty();
 

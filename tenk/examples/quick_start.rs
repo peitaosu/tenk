@@ -30,7 +30,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. Get K-line data
     let kline = client
-        .get_market("600519", Some("2025-01-01"), Some("2025-01-10"), KLineType::Daily)
+        .get_market(
+            "600519",
+            Some("2025-01-01"),
+            Some("2025-01-10"),
+            KLineType::Daily,
+        )
         .await?;
     println!("📈 K-line records: {}", kline.len());
 

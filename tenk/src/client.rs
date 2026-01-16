@@ -163,9 +163,16 @@ impl DataClient {
                 continue;
             }
 
-            match source.get_market(stock_code, start_date, end_date, k_type).await {
+            match source
+                .get_market(stock_code, start_date, end_date, k_type)
+                .await
+            {
                 Ok(data) if !data.is_empty() => {
-                    info!("Successfully fetched {} records from {}", data.len(), source.name());
+                    info!(
+                        "Successfully fetched {} records from {}",
+                        data.len(),
+                        source.name()
+                    );
                     return Ok(data);
                 }
                 Ok(_) => {
@@ -186,7 +193,10 @@ impl DataClient {
     }
 
     /// Fetches real-time market quotes.
-    pub async fn get_market_current(&self, stock_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
+    pub async fn get_market_current(
+        &self,
+        stock_codes: &[&str],
+    ) -> DataResult<Vec<CurrentMarketData>> {
         if self.market_sources.is_empty() {
             return Err(DataError::custom("No market sources configured"));
         }
@@ -195,7 +205,10 @@ impl DataClient {
             return Ok(Vec::new());
         }
 
-        info!("Fetching current market data for {} stocks", stock_codes.len());
+        info!(
+            "Fetching current market data for {} stocks",
+            stock_codes.len()
+        );
 
         for source in &self.market_sources {
             debug!("Trying source: {}", source.name());
@@ -206,7 +219,11 @@ impl DataClient {
 
             match source.get_market_current(stock_codes).await {
                 Ok(data) if !data.is_empty() => {
-                    info!("Successfully fetched {} current records from {}", data.len(), source.name());
+                    info!(
+                        "Successfully fetched {} current records from {}",
+                        data.len(),
+                        source.name()
+                    );
                     return Ok(data);
                 }
                 Ok(_) => continue,
@@ -305,7 +322,11 @@ impl DataClient {
 
             match source.get_all_codes().await {
                 Ok(data) if !data.is_empty() => {
-                    info!("Successfully fetched {} stock codes from {}", data.len(), source.name());
+                    info!(
+                        "Successfully fetched {} stock codes from {}",
+                        data.len(),
+                        source.name()
+                    );
                     return Ok(data);
                 }
                 Ok(_) => continue,
@@ -353,7 +374,11 @@ impl DataClient {
 
             match source.get_all_etf_codes().await {
                 Ok(data) if !data.is_empty() => {
-                    info!("Successfully fetched {} ETF codes from {}", data.len(), source.name());
+                    info!(
+                        "Successfully fetched {} ETF codes from {}",
+                        data.len(),
+                        source.name()
+                    );
                     return Ok(data);
                 }
                 Ok(_) => continue,
@@ -384,7 +409,10 @@ impl DataClient {
                 continue;
             }
 
-            match source.get_etf_market(fund_code, start_date, end_date, k_type).await {
+            match source
+                .get_etf_market(fund_code, start_date, end_date, k_type)
+                .await
+            {
                 Ok(data) if !data.is_empty() => return Ok(data),
                 Ok(_) => continue,
                 Err(e) if e.is_recoverable() => continue,
@@ -458,7 +486,11 @@ impl DataClient {
 
             match source.get_all_bond_codes().await {
                 Ok(data) if !data.is_empty() => {
-                    info!("Successfully fetched {} bond codes from {}", data.len(), source.name());
+                    info!(
+                        "Successfully fetched {} bond codes from {}",
+                        data.len(),
+                        source.name()
+                    );
                     return Ok(data);
                 }
                 Ok(_) => continue,
@@ -471,7 +503,10 @@ impl DataClient {
     }
 
     /// Fetches real-time bond quotes.
-    pub async fn get_bond_current(&self, bond_codes: Option<&[&str]>) -> DataResult<Vec<BondCurrentData>> {
+    pub async fn get_bond_current(
+        &self,
+        bond_codes: Option<&[&str]>,
+    ) -> DataResult<Vec<BondCurrentData>> {
         if self.bond_market_sources.is_empty() {
             return Err(DataError::custom("No bond market sources configured"));
         }
@@ -485,7 +520,11 @@ impl DataClient {
 
             match source.get_bond_current(bond_codes).await {
                 Ok(data) if !data.is_empty() => {
-                    info!("Successfully fetched {} bond records from {}", data.len(), source.name());
+                    info!(
+                        "Successfully fetched {} bond records from {}",
+                        data.len(),
+                        source.name()
+                    );
                     return Ok(data);
                 }
                 Ok(_) => continue,
@@ -517,7 +556,11 @@ impl DataClient {
 
             match source.get_news(category, page, limit).await {
                 Ok(data) if !data.is_empty() => {
-                    info!("Successfully fetched {} news articles from {}", data.len(), source.name());
+                    info!(
+                        "Successfully fetched {} news articles from {}",
+                        data.len(),
+                        source.name()
+                    );
                     return Ok(data);
                 }
                 Ok(_) => continue,
@@ -549,7 +592,11 @@ impl DataClient {
 
             match source.search_news(keyword, page, limit).await {
                 Ok(data) if !data.is_empty() => {
-                    info!("Successfully found {} news articles from {}", data.len(), source.name());
+                    info!(
+                        "Successfully found {} news articles from {}",
+                        data.len(),
+                        source.name()
+                    );
                     return Ok(data);
                 }
                 Ok(_) => continue,

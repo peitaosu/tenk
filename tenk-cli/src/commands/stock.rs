@@ -8,11 +8,11 @@ use tenk::{
     TickData,
 };
 
-use crate::output::{
-    change_pct_cell, format_amount, format_volume, price_cell, print_output, print_single,
-    right_cell, OutputConfig, SingleDisplay, TableRow,
-};
 use crate::StockAction;
+use crate::output::{
+    OutputConfig, SingleDisplay, TableRow, change_pct_cell, format_amount, format_volume,
+    price_cell, print_output, print_single, right_cell,
+};
 
 /// Handles stock commands.
 pub async fn handle(action: StockAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
@@ -30,12 +30,7 @@ pub async fn handle(action: StockAction, client: &DataClient, config: &OutputCon
             limit,
         } => {
             let mut data = client
-                .get_market(
-                    &symbol,
-                    start.as_deref(),
-                    end.as_deref(),
-                    kline_type.into(),
-                )
+                .get_market(&symbol, start.as_deref(), end.as_deref(), kline_type.into())
                 .await?;
 
             if let Some(n) = limit {
@@ -183,11 +178,7 @@ impl TableRow for TickData {
 
 impl TableRow for StockCode {
     fn headers() -> Vec<Cell> {
-        vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Exchange"),
-        ]
+        vec![Cell::new("Code"), Cell::new("Name"), Cell::new("Exchange")]
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -252,7 +243,11 @@ impl SingleDisplay for StockInfo {
             println!("  {:<15} {}", "Industry:".dimmed(), industry);
         }
         if let Some(total) = self.total_shares {
-            println!("  {:<15} {}", "Total Shares:".dimmed(), format_volume(total));
+            println!(
+                "  {:<15} {}",
+                "Total Shares:".dimmed(),
+                format_volume(total)
+            );
         }
         if let Some(circ) = self.circulating_shares {
             println!("  {:<15} {}", "Circulating:".dimmed(), format_volume(circ));

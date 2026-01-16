@@ -4,11 +4,11 @@ use anyhow::Result;
 use comfy_table::{Cell, CellAlignment};
 use tenk::{DataClient, ETFCode, ETFCurrentData, ETFMarketData, ETFMinuteData};
 
-use crate::output::{
-    change_pct_cell, format_amount, format_volume, price_cell_3, print_output, right_cell,
-    OutputConfig, TableRow,
-};
 use crate::ETFAction;
+use crate::output::{
+    OutputConfig, TableRow, change_pct_cell, format_amount, format_volume, price_cell_3,
+    print_output, right_cell,
+};
 
 /// Handles ETF commands.
 pub async fn handle(action: ETFAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
@@ -26,12 +26,7 @@ pub async fn handle(action: ETFAction, client: &DataClient, config: &OutputConfi
             limit,
         } => {
             let mut data = client
-                .get_etf_market(
-                    &symbol,
-                    start.as_deref(),
-                    end.as_deref(),
-                    kline_type.into(),
-                )
+                .get_etf_market(&symbol, start.as_deref(), end.as_deref(), kline_type.into())
                 .await?;
 
             if let Some(n) = limit {

@@ -5,11 +5,11 @@ use colored::Colorize;
 use comfy_table::{Cell, CellAlignment};
 use tenk::{BondCurrentData, ConvertibleBondCode, DataClient};
 
-use crate::output::{
-    change_pct_cell, format_amount, format_volume, price_cell, print_output, right_cell,
-    OutputConfig, TableRow,
-};
 use crate::BondAction;
+use crate::output::{
+    OutputConfig, TableRow, change_pct_cell, format_amount, format_volume, price_cell,
+    print_output, right_cell,
+};
 
 /// Handles bond commands.
 pub async fn handle(action: BondAction, client: &DataClient, config: &OutputConfig) -> Result<()> {

@@ -21,10 +21,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("1. Fetching all stock codes...");
     let codes = client.get_all_codes().await?;
     println!("   Found {} stocks", codes.len());
-    
+
     // Show stocks by exchange
-    let sh_count = codes.iter().filter(|c| c.exchange.to_string() == "SH").count();
-    let sz_count = codes.iter().filter(|c| c.exchange.to_string() == "SZ").count();
+    let sh_count = codes
+        .iter()
+        .filter(|c| c.exchange.to_string() == "SH")
+        .count();
+    let sz_count = codes
+        .iter()
+        .filter(|c| c.exchange.to_string() == "SZ")
+        .count();
     println!("   - Shanghai (SH): {}", sh_count);
     println!("   - Shenzhen (SZ): {}", sz_count);
     println!();
@@ -32,24 +38,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Get historical K-line data (Daily)
     println!("2. Fetching daily K-line for 300059 (东方财富)...");
     let daily = client
-        .get_market("300059", Some("2025-01-01"), Some("2025-01-31"), KLineType::Daily)
+        .get_market(
+            "300059",
+            Some("2025-01-01"),
+            Some("2025-01-31"),
+            KLineType::Daily,
+        )
         .await?;
     println!("   Fetched {} daily records", daily.len());
     if let Some(first) = daily.first() {
-        println!("   First: {} O:{:.2} H:{:.2} L:{:.2} C:{:.2}", 
-            first.trade_date, first.open, first.high, first.low, first.close);
+        println!(
+            "   First: {} O:{:.2} H:{:.2} L:{:.2} C:{:.2}",
+            first.trade_date, first.open, first.high, first.low, first.close
+        );
     }
     println!();
 
     // 3. Get weekly K-line data
     println!("3. Fetching weekly K-line for 600519 (贵州茅台)...");
     let weekly = client
-        .get_market("600519", Some("2025-01-01"), Some("2025-01-31"), KLineType::Weekly)
+        .get_market(
+            "600519",
+            Some("2025-01-01"),
+            Some("2025-01-31"),
+            KLineType::Weekly,
+        )
         .await?;
     println!("   Fetched {} weekly records", weekly.len());
     for record in weekly.iter().take(3) {
-        println!("   {} - Close: {:.2}, Change: {:+.2}%", 
-            record.trade_date, record.close, record.change_pct);
+        println!(
+            "   {} - Close: {:.2}, Change: {:+.2}%",
+            record.trade_date, record.close, record.change_pct
+        );
     }
     println!();
 
@@ -57,12 +77,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("4. Fetching current prices for multiple stocks...");
     let stocks = ["300059", "600519"];
     let current = client.get_market_current(&stocks).await?;
-    println!("   {:12} {:12} {:>10} {:>10}", "Code", "Name", "Price", "Change%");
+    println!(
+        "   {:12} {:12} {:>10} {:>10}",
+        "Code", "Name", "Price", "Change%"
+    );
     println!("   {}", "-".repeat(48));
     for data in &current {
         let arrow = if data.change_pct >= 0.0 { "↑" } else { "↓" };
-        println!("   {:12} {:12} {:>10.2} {:>9.2}%{}", 
-            data.stock_code, data.short_name, data.price, data.change_pct.abs(), arrow);
+        println!(
+            "   {:12} {:12} {:>10.2} {:>9.2}%{}",
+            data.stock_code,
+            data.short_name,
+            data.price,
+            data.change_pct.abs(),
+            arrow
+        );
     }
     println!();
 
@@ -72,14 +101,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Fetched {} minute records", minutes.len());
     if !minutes.is_empty() {
         if let Some(first) = minutes.first() {
-            println!("   First: {} - Price: {:.2}", 
-                first.trade_time.format("%H:%M"), first.price);
+            println!(
+                "   First: {} - Price: {:.2}",
+                first.trade_time.format("%H:%M"),
+                first.price
+            );
         }
         if let Some(last) = minutes.last() {
-            println!("   Last:  {} - Price: {:.2}", 
-                last.trade_time.format("%H:%M"), last.price);
+            println!(
+                "   Last:  {} - Price: {:.2}",
+                last.trade_time.format("%H:%M"),
+                last.price
+            );
         }
-        
+
         // Calculate price range
         let prices: Vec<f64> = minutes.iter().map(|m| m.price).collect();
         let min_price = prices.iter().cloned().fold(f64::INFINITY, f64::min);
@@ -111,9 +146,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("7. Testing THS source directly...");
     let ths = THSSource::default();
     use tenk::traits::StockMarketSource;
-    
+
     // Get K-line from THS
-    match ths.get_market("600519", Some("2025-01-01"), Some("2025-01-31"), KLineType::Daily).await {
+    match ths
+        .get_market(
+            "600519",
+            Some("2025-01-01"),
+            Some("2025-01-31"),
+            KLineType::Daily,
+        )
+        .await
+    {
         Ok(data) => {
             println!("   THS K-line for 600519: {} records", data.len());
             if let Some(first) = data.first() {
@@ -122,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => println!("   THS K-line error: {}", e),
     }
-    
+
     // Get current from THS
     match ths.get_market_current(&["600519", "300059"]).await {
         Ok(data) => {
@@ -133,7 +176,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => println!("   THS current error: {}", e),
     }
-    
+
     // Get minute from THS
     match ths.get_market_min("600519").await {
         Ok(data) => {

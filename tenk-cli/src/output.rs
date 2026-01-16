@@ -2,7 +2,9 @@
 
 use clap::ValueEnum;
 use colored::Colorize;
-use comfy_table::{presets::UTF8_FULL_CONDENSED, Cell, CellAlignment, Color, ContentArrangement, Table};
+use comfy_table::{
+    Cell, CellAlignment, Color, ContentArrangement, Table, presets::UTF8_FULL_CONDENSED,
+};
 use serde::Serialize;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
@@ -109,7 +111,11 @@ fn write_output_to_file<T: Serialize + TableRow>(
     Ok(())
 }
 
-fn write_single_to_file<T: Serialize>(data: &T, format: OutputFormat, path: &str) -> io::Result<()> {
+fn write_single_to_file<T: Serialize>(
+    data: &T,
+    format: OutputFormat,
+    path: &str,
+) -> io::Result<()> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
 
@@ -246,4 +252,3 @@ pub fn price_cell(value: f64) -> Cell {
 pub fn price_cell_3(value: f64) -> Cell {
     Cell::new(format!("{:.3}", value)).set_alignment(CellAlignment::Right)
 }
-

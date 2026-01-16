@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use tenk::sources::{EastMoneySource, SinaSource, THSSource};
 use tenk::{DataClient, KLineType};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tracing::Level;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod commands;
 mod mcp;
@@ -24,7 +24,13 @@ pub struct Cli {
     verbose: bool,
 
     /// Output format
-    #[arg(short = 'f', long = "format", global = true, value_enum, default_value = "table")]
+    #[arg(
+        short = 'f',
+        long = "format",
+        global = true,
+        value_enum,
+        default_value = "table"
+    )]
     format: OutputFormat,
 
     /// Output file path
@@ -342,8 +348,7 @@ async fn main() -> Result<()> {
     if cli.mcp {
         tracing_subscriber::fmt()
             .with_env_filter(
-                tracing_subscriber::EnvFilter::from_default_env()
-                    .add_directive(Level::INFO.into()),
+                tracing_subscriber::EnvFilter::from_default_env().add_directive(Level::INFO.into()),
             )
             .with_writer(std::io::stderr)
             .init();
@@ -358,8 +363,7 @@ async fn main() -> Result<()> {
     let filter = if cli.verbose { "debug" } else { "warn" };
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| filter.into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| filter.into()),
         )
         .with(tracing_subscriber::fmt::layer().with_target(false))
         .init();

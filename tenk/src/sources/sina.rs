@@ -1,13 +1,14 @@
 //! Sina Finance data source.
 
 use async_trait::async_trait;
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, ACCEPT_LANGUAGE, HOST, REFERER, USER_AGENT};
+use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, HOST, HeaderMap, HeaderValue, REFERER, USER_AGENT};
 use serde::Deserialize;
 use tracing::{debug, warn};
 
 use crate::data::{
     BondCurrentData, ConvertibleBondCode, CurrentMarketData, ETFCode, ETFCurrentData,
-    ETFMarketData, ETFMinuteData, Exchange, KLineType, MarketData, MinuteData, StockCode, StockInfo,
+    ETFMarketData, ETFMinuteData, Exchange, KLineType, MarketData, MinuteData, StockCode,
+    StockInfo,
 };
 use crate::error::{DataError, DataResult};
 use crate::request::{RequestConfig, RequestManager};
@@ -101,12 +102,11 @@ impl SinaSource {
         let volume: u64 = parts[4].parse().ok()?;
         let amount: f64 = parts[5].parse().ok()?;
 
-        let (adj_volume, adj_amount) =
-            if stock_code.starts_with(['0', '3', '6', '9']) {
-                (volume * 100, amount * 10000.0)
-            } else {
-                (volume, amount)
-            };
+        let (adj_volume, adj_amount) = if stock_code.starts_with(['0', '3', '6', '9']) {
+            (volume * 100, amount * 10000.0)
+        } else {
+            (volume, amount)
+        };
 
         Some(CurrentMarketData {
             stock_code: stock_code.to_string(),
@@ -152,12 +152,11 @@ impl SinaSource {
         let volume: u64 = parts[4].parse().ok()?;
         let amount: f64 = parts[5].parse().ok()?;
 
-        let (adj_volume, adj_amount) =
-            if fund_code.starts_with(['0', '1', '5']) {
-                (volume * 100, amount * 10000.0)
-            } else {
-                (volume, amount)
-            };
+        let (adj_volume, adj_amount) = if fund_code.starts_with(['0', '1', '5']) {
+            (volume * 100, amount * 10000.0)
+        } else {
+            (volume, amount)
+        };
 
         Some(ETFCurrentData {
             fund_code: fund_code.to_string(),

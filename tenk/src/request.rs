@@ -110,9 +110,8 @@ impl RequestManager {
             .pool_idle_timeout(Duration::from_secs(90));
 
         if let Some(proxy_url) = &config.proxy {
-            let proxy = reqwest::Proxy::all(proxy_url).map_err(|e| {
-                DataError::Config(format!("Invalid proxy URL '{proxy_url}': {e}"))
-            })?;
+            let proxy = reqwest::Proxy::all(proxy_url)
+                .map_err(|e| DataError::Config(format!("Invalid proxy URL '{proxy_url}': {e}")))?;
             client_builder = client_builder.proxy(proxy);
         }
 
@@ -194,7 +193,11 @@ impl RequestManager {
                 sleep(Duration::from_millis(wait_ms)).await;
             }
 
-            debug!("Request attempt {} of {}", attempt + 1, self.config.max_retries);
+            debug!(
+                "Request attempt {} of {}",
+                attempt + 1,
+                self.config.max_retries
+            );
 
             match builder().send().await {
                 Ok(response) => {

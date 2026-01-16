@@ -2,7 +2,9 @@
 
 use async_trait::async_trait;
 use chrono::{NaiveDate, TimeZone, Utc};
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, ACCEPT_LANGUAGE, COOKIE, HOST, REFERER, USER_AGENT};
+use reqwest::header::{
+    ACCEPT, ACCEPT_LANGUAGE, COOKIE, HOST, HeaderMap, HeaderValue, REFERER, USER_AGENT,
+};
 use serde::Deserialize;
 use tracing::{debug, warn};
 
@@ -31,10 +33,7 @@ impl THSSource {
     pub fn new() -> DataResult<Self> {
         let mut headers = HeaderMap::new();
         headers.insert(HOST, HeaderValue::from_static("d.10jqka.com.cn"));
-        headers.insert(
-            REFERER,
-            HeaderValue::from_static("http://q.10jqka.com.cn/"),
-        );
+        headers.insert(REFERER, HeaderValue::from_static("http://q.10jqka.com.cn/"));
         headers.insert(
             USER_AGENT,
             HeaderValue::from_static(
@@ -65,10 +64,7 @@ impl THSSource {
             ACCEPT,
             HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"),
         );
-        data_headers.insert(
-            COOKIE,
-            HeaderValue::from_static("v=1"),
-        );
+        data_headers.insert(COOKIE, HeaderValue::from_static("v=1"));
 
         let data_config = RequestConfig::default().with_headers(data_headers);
 
@@ -245,18 +241,22 @@ impl BondInfoSource for THSSource {
             .list
             .into_iter()
             .map(|item| {
-                let sub_date = item.sub_date.as_ref().and_then(|s| {
-                    NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
-                });
-                let listing_date = item.listing_date.as_ref().and_then(|s| {
-                    NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
-                });
-                let expire_date = item.expire_date.as_ref().and_then(|s| {
-                    NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
-                });
-                let issue_amount = item.issue_total.as_ref().and_then(|s| {
-                    s.parse::<f64>().ok().map(|v| v * 100_000_000.0)
-                });
+                let sub_date = item
+                    .sub_date
+                    .as_ref()
+                    .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+                let listing_date = item
+                    .listing_date
+                    .as_ref()
+                    .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+                let expire_date = item
+                    .expire_date
+                    .as_ref()
+                    .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+                let issue_amount = item
+                    .issue_total
+                    .as_ref()
+                    .and_then(|s| s.parse::<f64>().ok().map(|v| v * 100_000_000.0));
                 let convert_price = item.price.as_ref().and_then(|s| s.parse().ok());
 
                 ConvertibleBondCode {
@@ -431,10 +431,7 @@ impl StockMarketSource for THSSource {
                 .and_then(|v| v.as_str())
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0.0);
-            let volume: u64 = stock_data
-                .get("13")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+            let volume: u64 = stock_data.get("13").and_then(|v| v.as_u64()).unwrap_or(0);
             let amount: f64 = stock_data
                 .get("19")
                 .and_then(|v| v.as_str())
@@ -573,9 +570,7 @@ impl FundMarketSource for THSSource {
         k_type: KLineType,
     ) -> DataResult<Vec<ETFMarketData>> {
         let k_code = Self::kline_type_to_code(k_type);
-        let url = format!(
-            "http://d.10jqka.com.cn/v6/line/hs_{fund_code}/{k_code}/last36000.js"
-        );
+        let url = format!("http://d.10jqka.com.cn/v6/line/hs_{fund_code}/{k_code}/last36000.js");
 
         debug!("Fetching ETF market data from THS: {}", fund_code);
 
@@ -702,10 +697,7 @@ impl FundMarketSource for THSSource {
                 .and_then(|v| v.as_str())
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0.0);
-            let volume: u64 = etf_data
-                .get("13")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+            let volume: u64 = etf_data.get("13").and_then(|v| v.as_u64()).unwrap_or(0);
             let amount: f64 = etf_data
                 .get("19")
                 .and_then(|v| v.as_str())
@@ -757,15 +749,9 @@ impl FundMarketSource for THSSource {
             .and_then(|s| s.parse().ok())
             .unwrap_or(0.0);
 
-        let trade_date_str = etf_data
-            .get("date")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let trade_date_str = etf_data.get("date").and_then(|v| v.as_str()).unwrap_or("");
 
-        let data_str = etf_data
-            .get("data")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let data_str = etf_data.get("data").and_then(|v| v.as_str()).unwrap_or("");
 
         if data_str.is_empty() {
             return Ok(Vec::new());

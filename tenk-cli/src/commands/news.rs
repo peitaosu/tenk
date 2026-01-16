@@ -6,8 +6,8 @@ use colored::Colorize;
 use comfy_table::Cell;
 use tenk::{DataClient, NewsArticle, NewsCategory};
 
-use crate::output::{print_output, OutputConfig, OutputFormat, TableRow};
 use crate::NewsAction;
+use crate::output::{OutputConfig, OutputFormat, TableRow, print_output};
 
 /// Handles news commands.
 pub async fn handle(action: NewsAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
@@ -143,6 +143,7 @@ fn parse_category(s: &str) -> NewsCategory {
 impl TableRow for NewsArticle {
     fn headers() -> Vec<Cell> {
         vec![
+            Cell::new("ID"),
             Cell::new("Time"),
             Cell::new("Title"),
             Cell::new("Source"),
@@ -155,10 +156,10 @@ impl TableRow for NewsArticle {
             .format("%m-%d %H:%M")
             .to_string();
 
-        
         let title = self.title.clone();
 
         vec![
+            Cell::new(&self.id),
             Cell::new(local_time),
             Cell::new(title),
             Cell::new(&self.source),

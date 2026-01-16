@@ -1,9 +1,10 @@
 //! MCP Server for tenk.
 
 use rmcp::{
+    ErrorData as McpError, ServerHandler,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
     model::*,
-    tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
+    tool, tool_handler, tool_router,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -198,7 +199,10 @@ fn parse_kline_type(s: &str) -> KLineType {
 #[tool_router]
 impl TenkMCPServer {
     #[tool(description = "Get current stock quotes for one or more symbols")]
-    async fn stock_quote(&self, params: Parameters<SymbolsParam>) -> Result<CallToolResult, McpError> {
+    async fn stock_quote(
+        &self,
+        params: Parameters<SymbolsParam>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
         let data = client
@@ -240,7 +244,10 @@ impl TenkMCPServer {
     }
 
     #[tool(description = "Get historical K-line data for a stock")]
-    async fn stock_kline(&self, params: Parameters<KlineParams>) -> Result<CallToolResult, McpError> {
+    async fn stock_kline(
+        &self,
+        params: Parameters<KlineParams>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let kline_type = parse_kline_type(&params.0.kline_type);
 
@@ -291,7 +298,10 @@ impl TenkMCPServer {
     }
 
     #[tool(description = "Get intraday minute-level data for a stock")]
-    async fn stock_minute(&self, params: Parameters<SymbolParam>) -> Result<CallToolResult, McpError> {
+    async fn stock_minute(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let data = client
             .get_market_min(&params.0.symbol)
@@ -324,7 +334,10 @@ impl TenkMCPServer {
     }
 
     #[tool(description = "Get order book (bid/ask levels) for a stock")]
-    async fn stock_orderbook(&self, params: Parameters<SymbolParam>) -> Result<CallToolResult, McpError> {
+    async fn stock_orderbook(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let data = client
             .get_order_book(&params.0.symbol)
@@ -374,7 +387,10 @@ impl TenkMCPServer {
     }
 
     #[tool(description = "Get recent tick-by-tick trades for a stock")]
-    async fn stock_ticks(&self, params: Parameters<TicksParams>) -> Result<CallToolResult, McpError> {
+    async fn stock_ticks(
+        &self,
+        params: Parameters<TicksParams>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let mut data = client
             .get_ticks(&params.0.symbol)
@@ -409,7 +425,10 @@ impl TenkMCPServer {
     }
 
     #[tool(description = "Get detailed information about a stock")]
-    async fn stock_info(&self, params: Parameters<SymbolParam>) -> Result<CallToolResult, McpError> {
+    async fn stock_info(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let data = client
             .get_stock_info(&params.0.symbol)
@@ -479,7 +498,10 @@ impl TenkMCPServer {
     }
 
     #[tool(description = "Get current ETF quotes for one or more symbols")]
-    async fn etf_quote(&self, params: Parameters<SymbolsParam>) -> Result<CallToolResult, McpError> {
+    async fn etf_quote(
+        &self,
+        params: Parameters<SymbolsParam>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
         let data = client
@@ -564,7 +586,10 @@ impl TenkMCPServer {
     }
 
     #[tool(description = "Get intraday minute-level data for an ETF")]
-    async fn etf_minute(&self, params: Parameters<SymbolParam>) -> Result<CallToolResult, McpError> {
+    async fn etf_minute(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let data = client
             .get_etf_min(&params.0.symbol)
@@ -634,8 +659,13 @@ impl TenkMCPServer {
         Self::ok(Self::to_json(&output)?)
     }
 
-    #[tool(description = "Get current bond quotes with optional filtering for top gainers/losers/volume")]
-    async fn bond_quote(&self, params: Parameters<BondQuoteParams>) -> Result<CallToolResult, McpError> {
+    #[tool(
+        description = "Get current bond quotes with optional filtering for top gainers/losers/volume"
+    )]
+    async fn bond_quote(
+        &self,
+        params: Parameters<BondQuoteParams>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
 
         let codes: Option<Vec<&str>> = if params.0.symbols.is_empty() {
@@ -746,7 +776,10 @@ impl TenkMCPServer {
     }
 
     #[tool(description = "Get latest finance news by category")]
-    async fn news_list(&self, params: Parameters<NewsListParams>) -> Result<CallToolResult, McpError> {
+    async fn news_list(
+        &self,
+        params: Parameters<NewsListParams>,
+    ) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
         let category = parse_news_category(&params.0.category);
 
@@ -920,4 +953,3 @@ pub async fn run_server() -> anyhow::Result<()> {
 
     Ok(())
 }
-
