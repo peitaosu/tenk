@@ -7,20 +7,28 @@ use serde::Serialize;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 
+/// Output format for CLI results.
 #[derive(Clone, Copy, ValueEnum, Debug, Default)]
 pub enum OutputFormat {
+    /// JSON format
     JSON,
+    /// Table format (default)
     #[default]
     Table,
+    /// CSV format
     CSV,
 }
 
+/// Output configuration.
 #[derive(Clone, Debug)]
 pub struct OutputConfig {
+    /// Output format
     pub format: OutputFormat,
+    /// Output file path
     pub file: Option<String>,
 }
 
+/// Prints formatted output for a list of items.
 pub fn print_output<T: Serialize + TableRow>(data: &[T], config: &OutputConfig) {
     if let Some(ref path) = config.file {
         if let Err(e) = write_output_to_file(data, config.format, path) {
@@ -35,6 +43,7 @@ pub fn print_output<T: Serialize + TableRow>(data: &[T], config: &OutputConfig) 
     }
 }
 
+/// Prints formatted output for a single item.
 pub fn print_single<T: Serialize + SingleDisplay>(data: &T, config: &OutputConfig) {
     if let Some(ref path) = config.file {
         if let Err(e) = write_single_to_file(data, config.format, path) {
@@ -168,15 +177,18 @@ fn print_csv<T: TableRow + Serialize>(data: &[T]) {
     }
 }
 
+/// Trait for items displayable as table rows.
 pub trait TableRow {
     fn headers() -> Vec<Cell>;
     fn row(&self) -> Vec<Cell>;
 }
 
+/// Trait for single item display.
 pub trait SingleDisplay {
     fn print_single(&self);
 }
 
+/// Formats volume with unit suffix.
 pub fn format_volume(vol: u64) -> String {
     if vol >= 100_000_000 {
         format!("{} ({:.2}亿)", vol, vol as f64 / 100_000_000.0)
@@ -187,6 +199,7 @@ pub fn format_volume(vol: u64) -> String {
     }
 }
 
+/// Formats amount with unit suffix.
 pub fn format_amount(amount: f64) -> String {
     if amount >= 100_000_000.0 {
         format!("{:.0} ({:.2}亿)", amount, amount / 100_000_000.0)
@@ -197,6 +210,7 @@ pub fn format_amount(amount: f64) -> String {
     }
 }
 
+/// Formats change percentage with sign.
 pub fn format_change_pct(pct: f64) -> String {
     if pct >= 0.0 {
         format!("+{:.2}%", pct)
@@ -205,6 +219,7 @@ pub fn format_change_pct(pct: f64) -> String {
     }
 }
 
+/// Creates a colored cell for change percentage.
 pub fn change_pct_cell(pct: f64) -> Cell {
     let text = format_change_pct(pct);
     let cell = Cell::new(&text).set_alignment(CellAlignment::Right);
@@ -217,14 +232,17 @@ pub fn change_pct_cell(pct: f64) -> Cell {
     }
 }
 
+/// Creates a right-aligned cell.
 pub fn right_cell<T: std::fmt::Display>(value: T) -> Cell {
     Cell::new(value.to_string()).set_alignment(CellAlignment::Right)
 }
 
+/// Creates a price cell with 2 decimal places.
 pub fn price_cell(value: f64) -> Cell {
     Cell::new(format!("{:.2}", value)).set_alignment(CellAlignment::Right)
 }
 
+/// Creates a price cell with 3 decimal places.
 pub fn price_cell_3(value: f64) -> Cell {
     Cell::new(format!("{:.3}", value)).set_alignment(CellAlignment::Right)
 }

@@ -16,13 +16,17 @@ use crate::traits::{
     StockInfoSource, StockMarketSource,
 };
 
+/// Sina Finance (新浪财经) data source.
 #[derive(Debug, Clone)]
 pub struct SinaSource {
+    /// HTTP request manager
     request: RequestManager,
+    /// VIP API request manager
     vip_request: RequestManager,
 }
 
 impl SinaSource {
+    /// Creates a new Sina source.
     pub fn new() -> DataResult<Self> {
         let mut headers = HeaderMap::new();
         headers.insert(HOST, HeaderValue::from_static("hq.sinajs.cn"));
@@ -51,6 +55,7 @@ impl SinaSource {
         })
     }
 
+    /// Creates with a custom request manager.
     pub fn with_request_manager(request: RequestManager) -> Self {
         Self {
             request: request.clone(),
@@ -175,32 +180,47 @@ impl Default for SinaSource {
     }
 }
 
+/// Stock item from Sina API.
 #[derive(Debug, Deserialize)]
 struct SinaStockItem {
+    /// Stock code
     code: String,
+    /// Stock name
     name: String,
 }
 
+/// Bond item from Sina API.
 #[derive(Debug, Deserialize)]
 struct SinaBondItem {
+    /// Bond code
     code: String,
+    /// Bond name
     name: String,
+    /// Current price
     #[serde(deserialize_with = "deserialize_string_or_number")]
     trade: String,
+    /// Price change
     #[serde(deserialize_with = "deserialize_string_or_number")]
     pricechange: String,
+    /// Change percentage
     #[serde(deserialize_with = "deserialize_string_or_number")]
     changepercent: String,
+    /// Previous close
     #[serde(deserialize_with = "deserialize_string_or_number")]
     settlement: String,
+    /// Open price
     #[serde(deserialize_with = "deserialize_string_or_number")]
     open: String,
+    /// High price
     #[serde(deserialize_with = "deserialize_string_or_number")]
     high: String,
+    /// Low price
     #[serde(deserialize_with = "deserialize_string_or_number")]
     low: String,
+    /// Volume
     #[serde(deserialize_with = "deserialize_string_or_number")]
     volume: String,
+    /// Amount
     #[serde(deserialize_with = "deserialize_string_or_number")]
     amount: String,
 }
@@ -525,10 +545,14 @@ impl FundInfoSource for SinaSource {
     }
 }
 
+/// ETF item from Sina API.
 #[derive(Debug, Deserialize)]
 struct SinaETFItem {
+    /// ETF code
     code: String,
+    /// ETF name
     name: String,
+    /// Current price
     #[serde(default)]
     trade: String,
 }

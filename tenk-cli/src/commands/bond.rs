@@ -11,6 +11,7 @@ use crate::output::{
 };
 use crate::BondAction;
 
+/// Handles bond commands.
 pub async fn handle(action: BondAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
     match action {
         BondAction::Quote {

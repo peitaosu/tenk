@@ -8,14 +8,17 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tenk::sources::{EastMoneySource, SinaSource, THSSource};
-use tenk::{DataClient, KLineType};
+use tenk::{DataClient, KLineType, NewsCategory};
 
+/// MCP server implementation.
 #[derive(Clone)]
 pub struct TenkMCPServer {
+    /// Tool router for handling MCP requests
     tool_router: ToolRouter<Self>,
 }
 
 impl TenkMCPServer {
+    /// Creates a new MCP server instance.
     pub fn new() -> Self {
         Self {
             tool_router: Self::tool_router(),
@@ -27,6 +30,7 @@ impl TenkMCPServer {
             .with_source(EastMoneySource::default())
             .with_fund_source(EastMoneySource::default())
             .with_bond_source(EastMoneySource::default())
+            .with_news_source(EastMoneySource::default())
             .with_source(SinaSource::default())
             .with_fund_source(SinaSource::default())
             .with_bond_market_source(SinaSource::default())
@@ -45,60 +49,129 @@ impl TenkMCPServer {
     }
 }
 
+/// Parameters for multiple symbols.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SymbolsParam {
+    /// List of symbols
     pub symbols: Vec<String>,
 }
 
+/// Parameter for a single symbol.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SymbolParam {
+    /// Symbol code
     pub symbol: String,
 }
 
+/// Parameters for K-line data.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct KlineParams {
+    /// Symbol code
     pub symbol: String,
 
+    /// K-line type (daily, weekly, etc.)
     #[serde(default = "default_kline_type")]
     pub kline_type: String,
 
+    /// Start date (YYYY-MM-DD)
     pub start: Option<String>,
 
+    /// End date (YYYY-MM-DD)
     pub end: Option<String>,
 
+    /// Maximum number of records
     pub limit: Option<usize>,
 }
 
+/// Parameters for tick data.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct TicksParams {
+    /// Symbol code
     pub symbol: String,
 
+    /// Maximum number of records
     #[serde(default = "default_ticks_limit")]
     pub limit: usize,
 }
 
+/// Parameters for listing data.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ListParams {
+    /// Exchange filter
     pub exchange: Option<String>,
 
+    /// Maximum number of records
     pub limit: Option<usize>,
 }
 
+/// Parameters for bond quotes.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct BondQuoteParams {
+    /// List of bond symbols
     #[serde(default)]
     pub symbols: Vec<String>,
 
+    /// Top N gainers
     pub top_gainers: Option<usize>,
 
+    /// Top N losers
     pub top_losers: Option<usize>,
 
+    /// Top N by volume
     pub top_volume: Option<usize>,
 }
 
+/// Parameter for limit.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct LimitParam {
+    /// Maximum number of records to return
     pub limit: Option<usize>,
+}
+
+/// Parameters for news list.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct NewsListParams {
+    /// News category
+    #[serde(default = "default_news_category")]
+    pub category: String,
+    /// Page number
+    #[serde(default = "default_page")]
+    pub page: u32,
+    /// Number of articles
+    #[serde(default = "default_news_limit")]
+    pub limit: u32,
+}
+
+/// Parameter for news ID.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct NewsIdParam {
+    /// News ID
+    pub id: String,
+}
+
+fn default_news_category() -> String {
+    "finance".to_string()
+}
+
+fn default_page() -> u32 {
+    1
+}
+
+fn default_news_limit() -> u32 {
+    20
+}
+
+fn parse_news_category(s: &str) -> NewsCategory {
+    match s.to_lowercase().as_str() {
+        "finance" | "102" => NewsCategory::Finance,
+        "company" | "103" => NewsCategory::Company,
+        "stock" | "104" => NewsCategory::Stock,
+        "us" | "usmarket" | "105" => NewsCategory::USMarket,
+        "global" | "111" => NewsCategory::Global,
+        "domestic" | "106" => NewsCategory::Domestic,
+        "industry" | "115" => NewsCategory::Industry,
+        _ => NewsCategory::Finance,
+    }
 }
 
 fn default_kline_type() -> String {
@@ -671,6 +744,146 @@ impl TenkMCPServer {
 
         Self::ok(Self::to_json(&output)?)
     }
+
+    #[tool(description = "Get latest finance news by category")]
+    async fn news_list(&self, params: Parameters<NewsListParams>) -> Result<CallToolResult, McpError> {
+        let client = Self::build_client();
+        let category = parse_news_category(&params.0.category);
+
+        let data = client
+            .get_news(category, params.0.page, params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct NewsArticle {
+            id: String,
+            title: String,
+            digest: String,
+            url: String,
+            source: String,
+            publish_time: String,
+            category: String,
+        }
+
+        let output: Vec<NewsArticle> = data
+            .iter()
+            .map(|d| NewsArticle {
+                id: d.id.clone(),
+                title: d.title.clone(),
+                digest: d.digest.clone(),
+                url: d.url.clone(),
+                source: d.source.clone(),
+                publish_time: d.publish_time.format("%Y-%m-%d %H:%M:%S").to_string(),
+                category: d.category.to_string(),
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Read full news content by ID")]
+    async fn news_read(&self, params: Parameters<NewsIdParam>) -> Result<CallToolResult, McpError> {
+        let client = Self::build_client();
+
+        let data = client
+            .get_news_content(&params.0.id)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct NewsContent {
+            id: String,
+            title: String,
+            description: String,
+            content: String,
+            source: String,
+            author: Option<String>,
+            publish_time: String,
+            related_stocks: Vec<RelatedStockOutput>,
+            related_sectors: Vec<String>,
+        }
+
+        let (stocks, sectors) = format_related_stocks(&data.related_stocks);
+
+        let output = NewsContent {
+            id: data.id,
+            title: data.title,
+            description: data.description,
+            content: data.body_text,
+            source: data.source,
+            author: data.author,
+            publish_time: data.publish_time.format("%Y-%m-%d %H:%M:%S").to_string(),
+            related_stocks: stocks,
+            related_sectors: sectors,
+        };
+
+        Self::ok(Self::to_json(&output)?)
+    }
+}
+
+/// Related stock information output.
+#[derive(Serialize)]
+struct RelatedStockOutput {
+    /// Stock symbol
+    symbol: String,
+    /// Market code (SH/SZ)
+    market: String,
+    /// Formatted symbol with market
+    formatted: String,
+}
+
+/// Format related stock codes into structured format
+fn format_related_stocks(codes: &[String]) -> (Vec<RelatedStockOutput>, Vec<String>) {
+    let mut stocks = Vec::new();
+    let mut sectors = Vec::new();
+
+    for code in codes {
+        if let Some((market, symbol)) = code.split_once('.') {
+            match market {
+                "0" => stocks.push(RelatedStockOutput {
+                    symbol: symbol.to_string(),
+                    market: "SZ".to_string(),
+                    formatted: format!("{}.SZ", symbol),
+                }),
+                "1" => stocks.push(RelatedStockOutput {
+                    symbol: symbol.to_string(),
+                    market: "SH".to_string(),
+                    formatted: format!("{}.SH", symbol),
+                }),
+                "90" => {
+                    sectors.push(symbol.to_string());
+                }
+                "105" => stocks.push(RelatedStockOutput {
+                    symbol: symbol.to_string(),
+                    market: "NASDAQ".to_string(),
+                    formatted: format!("{} (NASDAQ)", symbol),
+                }),
+                "106" => stocks.push(RelatedStockOutput {
+                    symbol: symbol.to_string(),
+                    market: "NYSE".to_string(),
+                    formatted: format!("{} (NYSE)", symbol),
+                }),
+                "116" => stocks.push(RelatedStockOutput {
+                    symbol: symbol.to_string(),
+                    market: "HK".to_string(),
+                    formatted: format!("{}.HK", symbol),
+                }),
+                "118" => stocks.push(RelatedStockOutput {
+                    symbol: symbol.to_string(),
+                    market: "KR".to_string(),
+                    formatted: format!("{} (KR)", symbol),
+                }),
+                _ => stocks.push(RelatedStockOutput {
+                    symbol: symbol.to_string(),
+                    market: market.to_string(),
+                    formatted: code.clone(),
+                }),
+            }
+        }
+    }
+
+    (stocks, sectors)
 }
 
 #[tool_handler]

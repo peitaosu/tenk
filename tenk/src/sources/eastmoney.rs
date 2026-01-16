@@ -1,33 +1,38 @@
 //! East Money data source.
 
 use async_trait::async_trait;
-use chrono::{NaiveDate, TimeZone, Utc};
+use chrono::{FixedOffset, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
 use tracing::{debug, warn};
 
 use crate::data::{
     BondCurrentData, ConvertibleBondCode, CurrentMarketData, ETFCode, ETFCurrentData,
-    ETFMarketData, ETFMinuteData, Exchange, KLineType, MarketData, MinuteData, StockCode, StockInfo,
+    ETFMarketData, ETFMinuteData, Exchange, KLineType, MarketData, MinuteData, NewsArticle,
+    NewsCategory, NewsContent, StockCode, StockInfo,
 };
 use crate::error::DataResult;
 use crate::request::RequestManager;
 use crate::traits::{
-    BondInfoSource, BondMarketSource, DataSource, FundInfoSource, FundMarketSource,
+    BondInfoSource, BondMarketSource, DataSource, FundInfoSource, FundMarketSource, NewsSource,
     StockInfoSource, StockMarketSource,
 };
 
+/// East Money (东方财富) data source.
 #[derive(Debug, Clone)]
 pub struct EastMoneySource {
+    /// HTTP request manager
     request: RequestManager,
 }
 
 impl EastMoneySource {
+    /// Creates a new EastMoney source.
     pub fn new() -> DataResult<Self> {
         Ok(Self {
             request: RequestManager::default_manager()?,
         })
     }
 
+    /// Creates with a custom request manager.
     pub fn with_request_manager(request: RequestManager) -> Self {
         Self { request }
     }
@@ -61,52 +66,78 @@ impl Default for EastMoneySource {
     }
 }
 
+/// Beijing timezone (UTC+8).
+fn beijing_tz() -> FixedOffset {
+    FixedOffset::east_opt(8 * 3600).unwrap()
+}
+
+/// K-line API response.
 #[derive(Debug, Deserialize)]
 struct KLineResponse {
+    /// K-line data
     data: Option<KLineData>,
 }
 
+/// K-line data wrapper.
 #[derive(Debug, Deserialize)]
 struct KLineData {
+    /// K-line strings
     klines: Option<Vec<String>>,
 }
 
+/// Minute data API response.
 #[derive(Debug, Deserialize)]
 struct MinuteResponse {
+    /// Minute data
     data: Option<MinuteResponseData>,
 }
 
+/// Minute data wrapper.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MinuteResponseData {
+    /// Previous close price
     pre_close: f64,
+    /// Trend data strings
     trends: Option<Vec<String>>,
 }
 
+/// Stock list API response.
 #[derive(Debug, Deserialize)]
 struct StockListResponse {
+    /// Stock list data
     data: Option<StockListData>,
 }
 
+/// Stock list data wrapper.
 #[derive(Debug, Deserialize)]
 struct StockListData {
+    /// Stock items
     diff: Option<Vec<StockItem>>,
 }
 
+/// Stock item from API.
 #[derive(Debug, Deserialize)]
 struct StockItem {
+    /// Stock code
     #[serde(rename = "f12")]
     code: String,
+    /// Stock name
     #[serde(rename = "f14")]
     name: String,
+    /// Current price
     #[serde(rename = "f2", default)]
     price: Option<f64>,
+    /// Change percentage
     #[serde(rename = "f3", default)]
     change_pct: Option<f64>,
+    /// Price change
     #[serde(rename = "f4", default)]
     change: Option<f64>,
+    /// Volume
     #[serde(rename = "f5", default)]
     volume: Option<u64>,
+    /// Amount
     #[serde(rename = "f6", default)]
     amount: Option<f64>,
 }
@@ -761,89 +792,126 @@ impl FundMarketSource for EastMoneySource {
     }
 }
 
+/// Stock info API response.
 #[derive(Debug, Deserialize)]
 struct StockInfoResponse {
+    /// Result data
     result: Option<StockInfoResult>,
 }
 
+/// Stock info result wrapper.
 #[derive(Debug, Deserialize)]
 struct StockInfoResult {
+    /// Stock info items
     data: Option<Vec<StockInfoItem>>,
 }
 
+/// Stock info item from API.
 #[derive(Debug, Deserialize, Clone)]
 struct StockInfoItem {
+    /// Total shares
     #[serde(rename = "TOTAL_SHARES", default)]
     total_shares: Option<f64>,
+    /// Listed A shares
     #[serde(rename = "LISTED_A_SHARES", default)]
     listed_a_shares: Option<f64>,
 }
 
+/// Bond list API response.
 #[derive(Debug, Deserialize)]
 struct BondListResponse {
+    /// Result data
     result: Option<BondListResult>,
 }
 
+/// Bond list result wrapper.
 #[derive(Debug, Deserialize)]
 struct BondListResult {
+    /// Bond items
     data: Option<Vec<BondItem>>,
 }
 
+/// Bond item from API.
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct BondItem {
+    /// Bond code
     #[serde(rename = "SECURITY_CODE")]
     bond_code: String,
+    /// Bond name
     #[serde(rename = "SECURITY_NAME_ABBR")]
     bond_name: String,
+    /// Underlying stock code
     #[serde(rename = "CONVERT_STOCK_CODE", default)]
     stock_code: Option<String>,
+    /// Short name
     #[serde(rename = "SECURITY_SHORT_NAME", default)]
     short_name: Option<String>,
+    /// Subscription date
     #[serde(rename = "PUBLIC_START_DATE", default)]
     sub_date: Option<String>,
+    /// Issue amount
     #[serde(rename = "ACTUAL_ISSUE_SCALE", default)]
     issue_amount: Option<f64>,
+    /// Listing date
     #[serde(rename = "LISTING_DATE", default)]
     listing_date: Option<String>,
+    /// Expiration date
     #[serde(rename = "EXPIRE_DATE", default)]
     expire_date: Option<String>,
+    /// Conversion price
     #[serde(rename = "TRANSFER_PRICE", default)]
     convert_price: Option<f64>,
 }
 
+/// Bond quote API response.
 #[derive(Debug, Deserialize)]
 struct BondQuoteResponse {
+    /// Quote data
     data: Option<BondQuoteData>,
 }
 
+/// Bond quote data wrapper.
 #[derive(Debug, Deserialize)]
 struct BondQuoteData {
+    /// Quote items
     diff: Option<Vec<BondQuoteItem>>,
 }
 
+/// Bond quote item from API.
 #[derive(Debug, Deserialize)]
 struct BondQuoteItem {
+    /// Bond code
     #[serde(rename = "f12")]
     bond_code: String,
+    /// Bond name
     #[serde(rename = "f14")]
     bond_name: String,
+    /// Current price
     #[serde(rename = "f2", default)]
     price: Option<f64>,
+    /// Change percentage
     #[serde(rename = "f3", default)]
     change_pct: Option<f64>,
+    /// Price change
     #[serde(rename = "f4", default)]
     change: Option<f64>,
+    /// Volume
     #[serde(rename = "f5", default)]
     volume: Option<u64>,
+    /// Amount
     #[serde(rename = "f6", default)]
     amount: Option<f64>,
+    /// High price
     #[serde(rename = "f15", default)]
     high: Option<f64>,
+    /// Low price
     #[serde(rename = "f16", default)]
     low: Option<f64>,
+    /// Open price
     #[serde(rename = "f17", default)]
     open: Option<f64>,
+    /// Previous close
     #[serde(rename = "f18", default)]
     pre_close: Option<f64>,
 }
@@ -982,7 +1050,7 @@ impl BondMarketSource for EastMoneySource {
                 break;
             }
 
-            if let Some(codes) = bond_codes {
+                if let Some(codes) = bond_codes {
                 if all_bonds.len() >= codes.len() {
                     break;
                 }
@@ -990,6 +1058,293 @@ impl BondMarketSource for EastMoneySource {
         }
 
         Ok(all_bonds)
+    }
+}
+
+/// News API response.
+#[derive(Debug, Deserialize)]
+struct NewsResponse {
+    /// Response code
+    #[serde(default)]
+    rc: i32,
+    /// News items
+    news: Option<Vec<NewsItem>>,
+}
+
+/// News item from API.
+#[derive(Debug, Deserialize)]
+struct NewsItem {
+    /// News ID
+    id: String,
+    /// Title
+    title: String,
+    /// Digest/summary
+    #[serde(default)]
+    digest: String,
+    /// Web URL
+    #[serde(default)]
+    url_w: String,
+    /// Mobile URL
+    #[serde(default)]
+    url_m: String,
+    /// Media name
+    #[serde(rename = "Art_Media_Name", default)]
+    media_name: String,
+    /// Publish time
+    #[serde(default)]
+    showtime: String,
+    /// Comment count
+    #[serde(default)]
+    commentnum: String,
+    /// Image flag
+    #[serde(default)]
+    image: String,
+    /// Image URL
+    #[serde(rename = "Art_24Image", default)]
+    image_url: String,
+}
+
+#[async_trait]
+impl NewsSource for EastMoneySource {
+    async fn get_news(
+        &self,
+        category: NewsCategory,
+        page: u32,
+        limit: u32,
+    ) -> DataResult<Vec<NewsArticle>> {
+        let column = category.to_column_code();
+        let url = "https://newsapi.eastmoney.com/kuaixun/v2/api/list";
+
+        let params = [
+            ("column", column),
+            ("limit", &limit.to_string()),
+            ("p", &page.to_string()),
+        ];
+
+        debug!("Fetching news from East Money: category={:?}, page={}", category, page);
+
+        let response: NewsResponse = self.request.get_json_with_params(url, &params).await?;
+
+        if response.rc != 1 {
+            return Ok(Vec::new());
+        }
+
+        let items = response.news.unwrap_or_default();
+        let mut articles = Vec::with_capacity(items.len());
+
+        for item in items {
+            let publish_time = chrono::NaiveDateTime::parse_from_str(&item.showtime, "%Y-%m-%d %H:%M:%S")
+                .ok()
+                .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(Utc::now);
+
+            let comment_count: u32 = item.commentnum.parse().unwrap_or(0);
+            let has_image = !item.image.is_empty() || !item.image_url.is_empty();
+            let image_url = if !item.image_url.is_empty() {
+                Some(item.image_url)
+            } else if !item.image.is_empty() {
+                Some(item.image)
+            } else {
+                None
+            };
+
+            articles.push(NewsArticle {
+                id: item.id,
+                title: item.title,
+                digest: item.digest,
+                url: item.url_w,
+                url_mobile: if item.url_m.is_empty() { None } else { Some(item.url_m) },
+                source: item.media_name,
+                publish_time,
+                category,
+                comment_count,
+                has_image,
+                image_url,
+            });
+        }
+
+        Ok(articles)
+    }
+
+    async fn get_news_content(&self, news_id: &str) -> DataResult<NewsContent> {
+        let url = "https://newsinfo.eastmoney.com/kuaixun/v2/api/content";
+        let params = [("newsid", news_id)];
+
+        debug!("Fetching news content from East Money: id={}", news_id);
+
+        #[derive(Deserialize)]
+        struct RelatedStock {
+            #[serde(rename = "Code", default)]
+            code: String,
+        }
+
+        #[derive(Deserialize)]
+        struct ContentResponse {
+            newsid: String,
+            title: String,
+            #[serde(default)]
+            description: String,
+            #[serde(default)]
+            body: String,
+            #[serde(default)]
+            source: String,
+            #[serde(default)]
+            author: String,
+            #[serde(default)]
+            showtime: String,
+            #[serde(default)]
+            relatedstocks: Vec<RelatedStock>,
+            #[serde(default)]
+            images: Vec<String>,
+        }
+
+        let response: ContentResponse = self.request.get_json_with_params(url, &params).await?;
+
+        let publish_time = chrono::NaiveDateTime::parse_from_str(&response.showtime, "%Y-%m-%d %H:%M:%S")
+            .ok()
+            .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(Utc::now);
+
+        let body_text = html2text::from_read(response.body.as_bytes(), usize::MAX)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+
+        let related_stocks: Vec<String> = response
+            .relatedstocks
+            .into_iter()
+            .flat_map(|rs| rs.code.split(',').map(String::from).collect::<Vec<_>>())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        Ok(NewsContent {
+            id: response.newsid,
+            title: response.title,
+            description: response.description,
+            body_html: response.body,
+            body_text,
+            source: response.source,
+            author: if response.author.is_empty() { None } else { Some(response.author) },
+            publish_time,
+            related_stocks,
+            images: response.images,
+        })
+    }
+
+    async fn search_news(
+        &self,
+        keyword: &str,
+        page: u32,
+        limit: u32,
+    ) -> DataResult<Vec<NewsArticle>> {
+        let url = "https://search-api-web.eastmoney.com/search/jsonp";
+
+        let param = serde_json::json!({
+            "uid": "",
+            "keyword": keyword,
+            "type": ["cmsArticleWebOld"],
+            "client": "web",
+            "clientType": "web",
+            "clientVersion": "curr",
+            "param": {
+                "cmsArticleWebOld": {
+                    "searchScope": "default",
+                    "sort": "default",
+                    "pageIndex": page,
+                    "pageSize": limit,
+                    "preTag": "",
+                    "postTag": ""
+                }
+            }
+        });
+
+        let callback = format!("jQuery_{}", chrono::Utc::now().timestamp_millis());
+        let params = [
+            ("cb", callback.as_str()),
+            ("param", &param.to_string()),
+        ];
+
+        debug!("Searching news from East Money: keyword={}, page={}", keyword, page);
+
+        let response = self.request.get_with_params(url, &params).await?;
+        let response_text = response.text().await
+            .map_err(|e| crate::error::DataError::custom(format!("Failed to read response: {}", e)))?;
+
+        let prefix = format!("{}(", callback);
+        let json_str = response_text
+            .trim()
+            .strip_prefix(&prefix)
+            .and_then(|s| s.strip_suffix(')'))
+            .unwrap_or(&response_text);
+
+        #[derive(Deserialize)]
+        struct SearchResponse {
+            #[serde(default)]
+            result: Option<SearchResult>,
+        }
+
+        #[derive(Deserialize)]
+        struct SearchResult {
+            #[serde(rename = "cmsArticleWebOld", default)]
+            articles: Vec<SearchArticle>,
+        }
+
+        #[derive(Deserialize)]
+        struct SearchArticle {
+            #[serde(default)]
+            code: String,
+            #[serde(default)]
+            title: String,
+            #[serde(default)]
+            content: String,
+            #[serde(default)]
+            url: String,
+            #[serde(rename = "mediaName", default)]
+            media_name: String,
+            #[serde(default)]
+            date: String,
+            #[serde(rename = "imgUrl", default)]
+            img_url: String,
+        }
+
+        let search_response: SearchResponse = serde_json::from_str(json_str)
+            .map_err(|e| crate::error::DataError::custom(format!("Failed to parse search response: {}", e)))?;
+
+        let items = search_response
+            .result
+            .map(|r| r.articles)
+            .unwrap_or_default();
+
+        let mut articles = Vec::with_capacity(items.len());
+
+        for item in items {
+            let publish_time = chrono::NaiveDateTime::parse_from_str(&item.date, "%Y-%m-%d %H:%M:%S")
+                .or_else(|_| chrono::NaiveDateTime::parse_from_str(&item.date, "%Y-%m-%d"))
+                .ok()
+                .and_then(|dt| beijing_tz().from_local_datetime(&dt).single())
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(Utc::now);
+
+            let has_image = !item.img_url.is_empty();
+
+            articles.push(NewsArticle {
+                id: item.code,
+                title: item.title,
+                digest: item.content,
+                url: item.url,
+                url_mobile: None,
+                source: item.media_name,
+                publish_time,
+                category: NewsCategory::Finance,
+                comment_count: 0,
+                has_image,
+                image_url: if has_image { Some(item.img_url) } else { None },
+            });
+        }
+
+        Ok(articles)
     }
 }
 

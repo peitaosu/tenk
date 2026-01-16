@@ -9,53 +9,74 @@ mod commands;
 mod mcp;
 mod output;
 
-use commands::{bond, etf, stock};
+use commands::{bond, etf, news, stock};
 use output::OutputFormat;
 
+/// CLI application entry point.
 #[derive(Parser)]
 #[command(name = "tenk")]
 #[command(author = "Tony Su <peitaosu@163.com>")]
 #[command(version = "0.1.0")]
 #[command(about = "CLI for fetching market data from multiple sources", long_about = None)]
 pub struct Cli {
+    /// Enable verbose output
     #[arg(short, long, global = true)]
     verbose: bool,
 
+    /// Output format
     #[arg(short = 'f', long = "format", global = true, value_enum, default_value = "table")]
     format: OutputFormat,
 
+    /// Output file path
     #[arg(short = 'o', long = "output", global = true)]
     output_file: Option<String>,
 
+    /// Data sources to use
     #[arg(short, long, global = true, value_enum, default_values_t = vec![Source::Eastmoney, Source::Sina, Source::Ths])]
     source: Vec<Source>,
 
+    /// HTTP proxy URL
     #[arg(long, global = true)]
     proxy: Option<String>,
 
+    /// Subcommand to execute
     #[command(subcommand)]
     command: Option<Commands>,
 
+    /// Run as MCP server
     #[arg(long)]
     mcp: bool,
 }
 
+/// Data source provider.
 #[derive(Clone, Copy, ValueEnum, Debug, PartialEq)]
 pub enum Source {
+    /// East Money (东方财富)
     Eastmoney,
+    /// Sina Finance (新浪财经)
     Sina,
+    /// THS (同花顺)
     Ths,
 }
 
+/// K-line type for CLI arguments.
 #[derive(Clone, Copy, ValueEnum, Debug)]
 pub enum KLineArg {
+    /// Daily K-line
     Daily,
+    /// Weekly K-line
     Weekly,
+    /// Monthly K-line
     Monthly,
+    /// Quarterly K-line
     Quarterly,
+    /// 5-minute K-line
     Min5,
+    /// 15-minute K-line
     Min15,
+    /// 30-minute K-line
     Min30,
+    /// 60-minute K-line
     Min60,
 }
 
@@ -74,129 +95,213 @@ impl From<KLineArg> for KLineType {
     }
 }
 
+/// CLI commands.
 #[derive(Subcommand)]
 enum Commands {
+    /// Stock market commands
     Stock {
+        /// Stock subcommand action
         #[command(subcommand)]
         action: StockAction,
     },
 
+    /// ETF commands
     ETF {
+        /// ETF subcommand action
         #[command(subcommand)]
         action: ETFAction,
     },
 
+    /// Convertible bond commands
     Bond {
+        /// Bond subcommand action
         #[command(subcommand)]
         action: BondAction,
     },
+
+    /// News commands
+    News {
+        /// News subcommand action
+        #[command(subcommand)]
+        action: NewsAction,
+    },
 }
 
+/// Stock subcommands.
 #[derive(Subcommand)]
 pub enum StockAction {
+    /// Get real-time quotes
     Quote {
-
+        /// Stock symbols to query
         #[arg(required = true)]
         symbols: Vec<String>,
     },
-
+    /// Get K-line (candlestick) data
     Kline {
+        /// Stock symbol
         symbol: String,
 
+        /// K-line type
         #[arg(short = 'k', long, value_enum, default_value = "daily")]
         kline_type: KLineArg,
 
+        /// Start date
         #[arg(long)]
         start: Option<String>,
 
+        /// End date
         #[arg(long)]
         end: Option<String>,
 
+        /// Maximum number of records
         #[arg(short, long)]
         limit: Option<usize>,
     },
-
+    /// Get intraday minute data
     Minute {
+        /// Stock symbol
         symbol: String,
     },
-
+    /// Get order book (bid/ask levels)
     Orderbook {
+        /// Stock symbol
         symbol: String,
     },
-
+    /// Get recent tick-by-tick trades
     Ticks {
+        /// Stock symbol
         symbol: String,
 
+        /// Maximum number of records
         #[arg(short, long, default_value = "50")]
         limit: usize,
     },
-
+    /// Get stock info
     Info {
+        /// Stock symbol
         symbol: String,
     },
-
+    /// List all available stocks
     List {
+        /// Exchange filter
         #[arg(short, long)]
         exchange: Option<String>,
 
+        /// Maximum number of records
         #[arg(short, long)]
         limit: Option<usize>,
     },
 }
 
+/// ETF subcommands.
 #[derive(Subcommand)]
 pub enum ETFAction {
+    /// Get real-time quotes
     Quote {
+        /// ETF symbols to query
         #[arg(required = true)]
         symbols: Vec<String>,
     },
-
+    /// Get K-line (candlestick) data
     Kline {
+        /// ETF symbol
         symbol: String,
 
+        /// K-line type
         #[arg(short = 'k', long, value_enum, default_value = "daily")]
         kline_type: KLineArg,
 
+        /// Start date
         #[arg(long)]
         start: Option<String>,
 
+        /// End date
         #[arg(long)]
         end: Option<String>,
 
+        /// Maximum number of records
         #[arg(short, long)]
         limit: Option<usize>,
     },
-
+    /// Get intraday minute data
     Minute {
+        /// ETF symbol
         symbol: String,
     },
-
+    /// List all available ETFs
     List {
+        /// Exchange filter
         #[arg(short, long)]
         exchange: Option<String>,
 
+        /// Maximum number of records
         #[arg(short, long)]
         limit: Option<usize>,
     },
 }
 
+/// Convertible bond subcommands.
 #[derive(Subcommand)]
 pub enum BondAction {
+    /// Get real-time quotes with optional ranking filters
     Quote {
+        /// Bond symbols to query
         symbols: Vec<String>,
 
+        /// Top N gainers
         #[arg(long)]
         top_gainers: Option<usize>,
 
+        /// Top N losers
         #[arg(long)]
         top_losers: Option<usize>,
 
+        /// Top N by volume
         #[arg(long)]
         top_volume: Option<usize>,
     },
+    /// List all available convertible bonds
     List {
+        /// Maximum number of records
         #[arg(short, long)]
         limit: Option<usize>,
+    },
+}
+
+/// News subcommands.
+#[derive(Subcommand)]
+pub enum NewsAction {
+    /// Get latest news by category
+    List {
+        /// Category: finance, company, stock, us, global, domestic, industry
+        #[arg(short, long, default_value = "finance")]
+        category: String,
+
+        /// Page number
+        #[arg(short, long, default_value = "1")]
+        page: u32,
+
+        /// Number of articles
+        #[arg(short, long, default_value = "20")]
+        limit: u32,
+    },
+    /// Search news by keyword
+    Search {
+        /// Search keyword (stock code or name)
+        keyword: String,
+
+        /// Page number
+        #[arg(short, long, default_value = "1")]
+        page: u32,
+
+        /// Number of results
+        #[arg(short, long, default_value = "10")]
+        limit: u32,
+    },
+    /// Read full news content by ID
+    Read {
+        /// News ID (e.g., 202601153620739638)
+        id: String,
     },
 }
 
@@ -209,7 +314,8 @@ fn build_client(sources: &[Source]) -> DataClient {
                 client = client
                     .with_source(EastMoneySource::default())
                     .with_fund_source(EastMoneySource::default())
-                    .with_bond_source(EastMoneySource::default());
+                    .with_bond_source(EastMoneySource::default())
+                    .with_news_source(EastMoneySource::default());
             }
             Source::Sina => {
                 client = client
@@ -269,6 +375,7 @@ async fn main() -> Result<()> {
         Commands::Stock { action } => stock::handle(action, &client, &output_config).await?,
         Commands::ETF { action } => etf::handle(action, &client, &output_config).await?,
         Commands::Bond { action } => bond::handle(action, &client, &output_config).await?,
+        Commands::News { action } => news::handle(action, &client, &output_config).await?,
     }
 
     Ok(())

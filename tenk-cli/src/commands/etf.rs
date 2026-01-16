@@ -10,6 +10,7 @@ use crate::output::{
 };
 use crate::ETFAction;
 
+/// Handles ETF commands.
 pub async fn handle(action: ETFAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
     match action {
         ETFAction::Quote { symbols } => {

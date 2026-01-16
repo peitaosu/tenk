@@ -17,13 +17,17 @@ use crate::traits::{
     StockInfoSource, StockMarketSource,
 };
 
+/// THS (同花顺) data source.
 #[derive(Debug, Clone)]
 pub struct THSSource {
+    /// HTTP request manager
     request: RequestManager,
+    /// Data API request manager
     data_request: RequestManager,
 }
 
 impl THSSource {
+    /// Creates a new THS source.
     pub fn new() -> DataResult<Self> {
         let mut headers = HeaderMap::new();
         headers.insert(HOST, HeaderValue::from_static("d.10jqka.com.cn"));
@@ -74,6 +78,7 @@ impl THSSource {
         })
     }
 
+    /// Creates with a custom request manager.
     pub fn with_request_manager(request: RequestManager) -> Self {
         Self {
             request: request.clone(),
@@ -107,37 +112,53 @@ impl Default for THSSource {
     }
 }
 
+/// Bond list API response.
 #[derive(Debug, Deserialize)]
 struct BondCodeResponse {
+    /// Status message
     status_msg: String,
+    /// Bond items
     #[serde(default)]
     list: Vec<THSBondItem>,
 }
 
+/// Bond item from THS API.
 #[derive(Debug, Deserialize)]
 struct THSBondItem {
+    /// Bond code
     bond_code: String,
+    /// Bond name
     bond_name: String,
+    /// Stock code
     #[serde(default)]
     code: String,
+    /// Stock name
     #[serde(default)]
     name: String,
+    /// Subscription date
     #[serde(default)]
     sub_date: Option<String>,
+    /// Issue total
     #[serde(default)]
     issue_total: Option<String>,
+    /// Listing date
     #[serde(default)]
     listing_date: Option<String>,
+    /// Expiration date
     #[serde(default)]
     expire_date: Option<String>,
+    /// Conversion price
     #[serde(default)]
     price: Option<String>,
 }
 
+/// K-line API response.
 #[derive(Debug, Deserialize)]
 struct KLineResponse {
+    /// Total records
     #[serde(deserialize_with = "deserialize_total")]
     total: u32,
+    /// K-line data string
     #[serde(default)]
     data: String,
 }

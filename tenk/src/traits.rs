@@ -4,8 +4,8 @@ use async_trait::async_trait;
 
 use crate::data::{
     BondCurrentData, ConvertibleBondCode, CurrentMarketData, ETFCode, ETFCurrentData,
-    ETFMarketData, ETFMinuteData, KLineType, MarketData, MinuteData, OrderBookData, StockCode,
-    StockInfo, TickData,
+    ETFMarketData, ETFMinuteData, KLineType, MarketData, MinuteData, NewsArticle, NewsCategory,
+    NewsContent, OrderBookData, StockCode, StockInfo, TickData,
 };
 use crate::error::DataResult;
 
@@ -70,6 +70,7 @@ pub trait IndexMarketSource: DataSource {
     async fn get_index_current(&self, index_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>>;
 }
 
+/// Combined stock market and info source.
 pub trait FullStockSource: StockMarketSource + StockInfoSource {}
 impl<T: StockMarketSource + StockInfoSource> FullStockSource for T {}
 
@@ -98,6 +99,7 @@ pub trait FundMarketSource: DataSource {
     }
 }
 
+/// Combined ETF info and market source.
 pub trait FullFundSource: FundInfoSource + FundMarketSource {}
 impl<T: FundInfoSource + FundMarketSource> FullFundSource for T {}
 
@@ -116,8 +118,35 @@ pub trait BondMarketSource: DataSource {
     ) -> DataResult<Vec<BondCurrentData>>;
 }
 
+/// Combined bond info and market source.
 pub trait FullBondSource: BondInfoSource + BondMarketSource {}
 impl<T: BondInfoSource + BondMarketSource> FullBondSource for T {}
+
+/// News source.
+#[async_trait]
+pub trait NewsSource: DataSource {
+    /// Get latest news by category.
+    async fn get_news(
+        &self,
+        category: NewsCategory,
+        page: u32,
+        limit: u32,
+    ) -> DataResult<Vec<NewsArticle>>;
+
+    /// Get full news content by ID.
+    async fn get_news_content(&self, news_id: &str) -> DataResult<NewsContent>;
+
+    /// Search news by keyword.
+    async fn search_news(
+        &self,
+        keyword: &str,
+        page: u32,
+        limit: u32,
+    ) -> DataResult<Vec<NewsArticle>> {
+        let _ = (keyword, page, limit);
+        Err(crate::error::DataError::not_supported("search_news"))
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -12,12 +12,19 @@ use crate::error::{DataError, DataResult};
 /// HTTP request configuration.
 #[derive(Debug, Clone)]
 pub struct RequestConfig {
+    /// Maximum retry attempts
     pub max_retries: u32,
+    /// Wait time between retries (ms)
     pub retry_wait_ms: u64,
+    /// Wait time between requests (ms)
     pub request_wait_ms: Option<u64>,
+    /// Request timeout
     pub timeout: Duration,
+    /// Proxy URL
     pub proxy: Option<String>,
+    /// User agent string
     pub user_agent: String,
+    /// Custom headers
     pub headers: Option<HeaderMap>,
 }
 
@@ -36,40 +43,48 @@ impl Default for RequestConfig {
 }
 
 impl RequestConfig {
+    /// Creates a new default configuration.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the maximum retry count.
     pub fn with_retries(mut self, retries: u32) -> Self {
         self.max_retries = retries;
         self
     }
 
+    /// Sets the wait time between retries.
     pub fn with_retry_wait(mut self, wait_ms: u64) -> Self {
         self.retry_wait_ms = wait_ms;
         self
     }
 
+    /// Sets the wait time between requests.
     pub fn with_request_wait(mut self, wait_ms: u64) -> Self {
         self.request_wait_ms = Some(wait_ms);
         self
     }
 
+    /// Sets the request timeout.
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
+    /// Sets the proxy URL.
     pub fn with_proxy<S: Into<String>>(mut self, proxy_url: S) -> Self {
         self.proxy = Some(proxy_url.into());
         self
     }
 
+    /// Sets the user agent string.
     pub fn with_user_agent<S: Into<String>>(mut self, user_agent: S) -> Self {
         self.user_agent = user_agent.into();
         self
     }
 
+    /// Sets default headers.
     pub fn with_headers(mut self, headers: HeaderMap) -> Self {
         self.headers = Some(headers);
         self
@@ -79,11 +94,14 @@ impl RequestConfig {
 /// HTTP client with retry logic.
 #[derive(Clone)]
 pub struct RequestManager {
+    /// HTTP client instance
     client: Client,
+    /// Request configuration
     config: Arc<RequestConfig>,
 }
 
 impl RequestManager {
+    /// Creates a new request manager with configuration.
     pub fn new(config: RequestConfig) -> DataResult<Self> {
         let mut client_builder = Client::builder()
             .timeout(config.timeout)
@@ -112,18 +130,22 @@ impl RequestManager {
         })
     }
 
+    /// Creates a request manager with default configuration.
     pub fn default_manager() -> DataResult<Self> {
         Self::new(RequestConfig::default())
     }
 
+    /// Returns the configuration.
     pub fn config(&self) -> &RequestConfig {
         &self.config
     }
 
+    /// Performs a GET request.
     pub async fn get(&self, url: &str) -> DataResult<Response> {
         self.request_with_retry(|| self.client.get(url)).await
     }
 
+    /// Performs a GET request with query parameters.
     pub async fn get_with_params<T: serde::Serialize + ?Sized>(
         &self,
         url: &str,
@@ -133,6 +155,7 @@ impl RequestManager {
             .await
     }
 
+    /// Performs a POST request with JSON body.
     pub async fn post_json<T: serde::Serialize + ?Sized>(
         &self,
         url: &str,
@@ -142,12 +165,14 @@ impl RequestManager {
             .await
     }
 
+    /// Performs a GET request and deserializes JSON response.
     pub async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> DataResult<T> {
         let response = self.get(url).await?;
         let json = response.json::<T>().await?;
         Ok(json)
     }
 
+    /// Performs a GET request with params and deserializes JSON response.
     pub async fn get_json_with_params<T, P>(&self, url: &str, params: &P) -> DataResult<T>
     where
         T: serde::de::DeserializeOwned,

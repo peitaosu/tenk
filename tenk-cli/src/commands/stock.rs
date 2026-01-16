@@ -14,6 +14,7 @@ use crate::output::{
 };
 use crate::StockAction;
 
+/// Handles stock commands.
 pub async fn handle(action: StockAction, client: &DataClient, config: &OutputConfig) -> Result<()> {
     match action {
         StockAction::Quote { symbols } => {
