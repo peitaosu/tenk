@@ -17,6 +17,7 @@ pub use data::{
 pub use error::{DataError, DataResult};
 pub use request::{RequestConfig, RequestManager};
 
+/// Library version string.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Creates a new DataClient.

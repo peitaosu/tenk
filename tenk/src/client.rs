@@ -308,7 +308,7 @@ impl DataClient {
     }
 
     /// Fetches all available stock codes.
-    pub async fn get_all_codes(&self) -> DataResult<Vec<StockCode>> {
+    pub async fn get_all_codes(&self, limit: Option<usize>) -> DataResult<Vec<StockCode>> {
         if self.info_sources.is_empty() {
             return Err(DataError::custom("No info sources configured"));
         }
@@ -320,7 +320,7 @@ impl DataClient {
                 continue;
             }
 
-            match source.get_all_codes().await {
+            match source.get_all_codes(limit).await {
                 Ok(data) if !data.is_empty() => {
                     info!(
                         "Successfully fetched {} stock codes from {}",
@@ -360,7 +360,7 @@ impl DataClient {
     }
 
     /// Fetches all available ETF codes.
-    pub async fn get_all_etf_codes(&self) -> DataResult<Vec<ETFCode>> {
+    pub async fn get_all_etf_codes(&self, limit: Option<usize>) -> DataResult<Vec<ETFCode>> {
         if self.fund_info_sources.is_empty() {
             return Err(DataError::custom("No fund info sources configured"));
         }
@@ -372,7 +372,7 @@ impl DataClient {
                 continue;
             }
 
-            match source.get_all_etf_codes().await {
+            match source.get_all_etf_codes(limit).await {
                 Ok(data) if !data.is_empty() => {
                     info!(
                         "Successfully fetched {} ETF codes from {}",
@@ -472,7 +472,7 @@ impl DataClient {
     }
 
     /// Fetches all available convertible bond codes.
-    pub async fn get_all_bond_codes(&self) -> DataResult<Vec<ConvertibleBondCode>> {
+    pub async fn get_all_bond_codes(&self, limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>> {
         if self.bond_info_sources.is_empty() {
             return Err(DataError::custom("No bond info sources configured"));
         }
@@ -484,7 +484,7 @@ impl DataClient {
                 continue;
             }
 
-            match source.get_all_bond_codes().await {
+            match source.get_all_bond_codes(limit).await {
                 Ok(data) if !data.is_empty() => {
                     info!(
                         "Successfully fetched {} bond codes from {}",

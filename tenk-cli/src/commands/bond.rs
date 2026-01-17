@@ -56,12 +56,7 @@ pub async fn handle(action: BondAction, client: &DataClient, config: &OutputConf
             print_output(&data, config);
         }
         BondAction::List { limit } => {
-            let mut data = client.get_all_bond_codes().await?;
-
-            if let Some(n) = limit {
-                data.truncate(n);
-            }
-
+            let data = client.get_all_bond_codes(limit).await?;
             print_output(&data, config);
         }
     }

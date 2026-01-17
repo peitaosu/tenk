@@ -182,6 +182,7 @@ impl RequestManager {
         Ok(json)
     }
 
+    /// Performs a request with retry logic.
     async fn request_with_retry<F>(&self, builder: F) -> DataResult<Response>
     where
         F: Fn() -> reqwest::RequestBuilder,

@@ -60,15 +60,15 @@ pub async fn handle(action: StockAction, client: &DataClient, config: &OutputCon
             print_single(&data, config);
         }
         StockAction::List { exchange, limit } => {
-            let mut data = client.get_all_codes().await?;
+            let fetch_limit = if exchange.is_some() { None } else { limit };
+            let mut data = client.get_all_codes(fetch_limit).await?;
 
             if let Some(ex) = exchange {
                 let ex_upper = ex.to_uppercase();
                 data.retain(|c| c.exchange.to_string() == ex_upper);
-            }
-
-            if let Some(n) = limit {
-                data.truncate(n);
+                if let Some(n) = limit {
+                    data.truncate(n);
+                }
             }
 
             print_output(&data, config);

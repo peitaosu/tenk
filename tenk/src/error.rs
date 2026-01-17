@@ -50,6 +50,7 @@ pub enum DataError {
     Custom(String),
 }
 
+/// Result type alias for data operations.
 pub type DataResult<T> = Result<T, DataError>;
 
 impl DataError {
@@ -106,7 +107,7 @@ mod tests {
         assert_eq!(err.to_string(), "test error");
 
         let err = DataError::invalid_stock_code("INVALID");
-        assert_eq!(err.to_string(), "Invalid stock code: INVALID");
+        assert_eq!(err.to_string(), "Invalid Stock Code: INVALID");
     }
 
     #[test]

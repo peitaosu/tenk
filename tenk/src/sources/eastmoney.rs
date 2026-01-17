@@ -37,6 +37,7 @@ impl EastMoneySource {
         Self { request }
     }
 
+    /// Converts stock code to EastMoney secid format.
     fn get_secid(stock_code: &str) -> String {
         let prefix = if stock_code.starts_with('6') || stock_code.starts_with('5') {
             "1"
@@ -46,6 +47,7 @@ impl EastMoneySource {
         format!("{prefix}.{stock_code}")
     }
 
+    /// Converts KLineType to EastMoney API klt value.
     fn kline_to_klt(k_type: KLineType) -> u32 {
         match k_type {
             KLineType::Daily => 101,
@@ -61,12 +63,13 @@ impl EastMoneySource {
 }
 
 impl Default for EastMoneySource {
+    /// Creates default EastMoney source.
     fn default() -> Self {
         Self::new().expect("Failed to create EastMoneySource")
     }
 }
 
-/// Beijing timezone (UTC+8).
+/// Returns Beijing timezone (UTC+8).
 fn beijing_tz() -> FixedOffset {
     FixedOffset::east_opt(8 * 3600).unwrap()
 }
@@ -128,30 +131,21 @@ struct StockItem {
     /// Current price
     #[serde(rename = "f2", default)]
     price: Option<f64>,
-    /// Change percentage
-    #[serde(rename = "f3", default)]
-    change_pct: Option<f64>,
-    /// Price change
-    #[serde(rename = "f4", default)]
-    change: Option<f64>,
-    /// Volume
-    #[serde(rename = "f5", default)]
-    volume: Option<u64>,
-    /// Amount
-    #[serde(rename = "f6", default)]
-    amount: Option<f64>,
 }
 
 #[async_trait]
 impl DataSource for EastMoneySource {
+    /// Returns the source name.
     fn name(&self) -> &'static str {
         "eastmoney"
     }
 
+    /// Returns the source priority.
     fn priority(&self) -> u8 {
         1
     }
 
+    /// Checks if the source is available.
     async fn is_available(&self) -> bool {
         self.request
             .get("https://push2.eastmoney.com/api/qt/stock/trends2/get")
@@ -162,6 +156,7 @@ impl DataSource for EastMoneySource {
 
 #[async_trait]
 impl StockMarketSource for EastMoneySource {
+    /// Fetches historical K-line market data.
     async fn get_market(
         &self,
         stock_code: &str,
@@ -245,55 +240,84 @@ impl StockMarketSource for EastMoneySource {
         Ok(result)
     }
 
+    /// Fetches real-time market quotes.
     async fn get_market_current(&self, stock_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
         if stock_codes.is_empty() {
             return Ok(Vec::new());
         }
 
-        let codes_str: String = stock_codes
-            .iter()
-            .map(|c| Self::get_secid(c))
-            .collect::<Vec<_>>()
-            .join(",");
+        let mut results = Vec::with_capacity(stock_codes.len());
 
-        let params = [
-            ("pn", "1"),
-            ("pz", &stock_codes.len().to_string()),
-            ("po", "1"),
-            ("np", "1"),
-            ("ut", "bd1d9ddb04089700cf9c27f6f7426281"),
-            ("fltt", "2"),
-            ("invt", "2"),
-            ("fid", "f3"),
-            ("fs", &format!("b:{codes_str}")),
-            ("fields", "f2,f3,f4,f5,f6,f12,f14"),
-        ];
+        for code in stock_codes {
+            let secid = Self::get_secid(code);
+            let params = [
+                ("secid", secid.as_str()),
+                ("fields", "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170"),
+            ];
 
-        let url = "https://push2.eastmoney.com/api/qt/clist/get";
-        let response: StockListResponse = self.request.get_json_with_params(url, &params).await?;
+            let url = "https://push2.eastmoney.com/api/qt/stock/get";
+            debug!("Fetching stock quote for {}", code);
 
-        let items = response.data.and_then(|d| d.diff).unwrap_or_default();
+            #[derive(Deserialize)]
+            struct StockGetResponse {
+                data: Option<StockGetData>,
+            }
 
-        let result: Vec<CurrentMarketData> = items
-            .into_iter()
-            .map(|item| CurrentMarketData {
-                stock_code: item.code,
-                short_name: item.name,
-                price: item.price.unwrap_or(0.0),
-                change: item.change.unwrap_or(0.0),
-                change_pct: item.change_pct.unwrap_or(0.0),
-                volume: item.volume.unwrap_or(0) * 100,
-                amount: item.amount.unwrap_or(0.0),
-                open: None,
-                high: None,
-                low: None,
-                pre_close: None,
-            })
-            .collect();
+            #[derive(Deserialize)]
+            struct StockGetData {
+                #[serde(rename = "f57")]
+                code: String,
+                #[serde(rename = "f58")]
+                name: String,
+                #[serde(rename = "f43", default)]
+                price: Option<i64>,
+                #[serde(rename = "f44", default)]
+                high: Option<i64>,
+                #[serde(rename = "f45", default)]
+                low: Option<i64>,
+                #[serde(rename = "f46", default)]
+                open: Option<i64>,
+                #[serde(rename = "f47", default)]
+                volume: Option<u64>,
+                #[serde(rename = "f48", default)]
+                amount: Option<f64>,
+                #[serde(rename = "f60", default)]
+                pre_close: Option<i64>,
+                #[serde(rename = "f169", default)]
+                change: Option<i64>,
+                #[serde(rename = "f170", default)]
+                change_pct: Option<i64>,
+            }
 
-        Ok(result)
+            match self.request.get_json_with_params(url, &params).await {
+                Ok(response) => {
+                    let response: StockGetResponse = response;
+                    if let Some(data) = response.data {
+                        results.push(CurrentMarketData {
+                            stock_code: data.code,
+                            short_name: data.name,
+                            price: data.price.map(|v| v as f64 / 100.0).unwrap_or(0.0),
+                            open: data.open.map(|v| v as f64 / 100.0),
+                            high: data.high.map(|v| v as f64 / 100.0),
+                            low: data.low.map(|v| v as f64 / 100.0),
+                            pre_close: data.pre_close.map(|v| v as f64 / 100.0),
+                            change: data.change.map(|v| v as f64 / 100.0).unwrap_or(0.0),
+                            change_pct: data.change_pct.map(|v| v as f64 / 100.0).unwrap_or(0.0),
+                            volume: data.volume.unwrap_or(0) * 100,
+                            amount: data.amount.unwrap_or(0.0),
+                        });
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to fetch stock {}: {}", code, e);
+                }
+            }
+        }
+
+        Ok(results)
     }
 
+    /// Fetches intraday minute-level data.
     async fn get_market_min(&self, stock_code: &str) -> DataResult<Vec<MinuteData>> {
         let secid = Self::get_secid(stock_code);
 
@@ -374,12 +398,14 @@ impl StockMarketSource for EastMoneySource {
 
 #[async_trait]
 impl StockInfoSource for EastMoneySource {
-    async fn get_all_codes(&self) -> DataResult<Vec<StockCode>> {
+    /// Fetches all available stock codes.
+    async fn get_all_codes(&self, limit: Option<usize>) -> DataResult<Vec<StockCode>> {
         let url = "https://82.push2.eastmoney.com/api/qt/clist/get";
         let mut all_codes = Vec::new();
         let page_size = 100;
+        let mut page = 1;
 
-        for page in 1..=100 {
+        loop {
             let params = [
                 ("pn", page.to_string()),
                 ("pz", page_size.to_string()),
@@ -422,16 +448,24 @@ impl StockInfoSource for EastMoneySource {
                     exchange,
                     list_date: None,
                 });
+
+                if let Some(lim) = limit {
+                    if all_codes.len() >= lim {
+                        return Ok(all_codes);
+                    }
+                }
             }
 
-            if count < page_size {
+            if count < page_size as usize {
                 break;
             }
+            page += 1;
         }
 
         Ok(all_codes)
     }
 
+    /// Fetches detailed stock information.
     async fn get_stock_info(&self, stock_code: &str) -> DataResult<StockInfo> {
         let exchange = Exchange::from_stock_code(stock_code);
         let secucode = format!("{}.{}", stock_code, exchange);
@@ -539,12 +573,14 @@ impl StockInfoSource for EastMoneySource {
 
 #[async_trait]
 impl FundInfoSource for EastMoneySource {
-    async fn get_all_etf_codes(&self) -> DataResult<Vec<ETFCode>> {
+    /// Fetches all available ETF codes.
+    async fn get_all_etf_codes(&self, limit: Option<usize>) -> DataResult<Vec<ETFCode>> {
         let url = "https://82.push2.eastmoney.com/api/qt/clist/get";
         let mut all_codes = Vec::new();
         let page_size = 50;
+        let mut page = 1;
 
-        for page in 1..=50 {
+        loop {
             let params = [
                 ("pn", page.to_string()),
                 ("pz", page_size.to_string()),
@@ -585,11 +621,18 @@ impl FundInfoSource for EastMoneySource {
                     exchange,
                     net_value: item.price,
                 });
+
+                if let Some(lim) = limit {
+                    if all_codes.len() >= lim {
+                        return Ok(all_codes);
+                    }
+                }
             }
 
             if count < page_size {
                 break;
             }
+            page += 1;
         }
 
         Ok(all_codes)
@@ -598,6 +641,7 @@ impl FundInfoSource for EastMoneySource {
 
 #[async_trait]
 impl FundMarketSource for EastMoneySource {
+    /// Fetches historical ETF K-line market data.
     async fn get_etf_market(
         &self,
         fund_code: &str,
@@ -677,54 +721,81 @@ impl FundMarketSource for EastMoneySource {
         Ok(result)
     }
 
+    /// Fetches real-time ETF quotes.
     async fn get_etf_current(&self, fund_codes: &[&str]) -> DataResult<Vec<ETFCurrentData>> {
         if fund_codes.is_empty() {
             return Ok(Vec::new());
         }
 
-        let codes_str: String = fund_codes
-            .iter()
-            .map(|c| Self::get_secid(c))
-            .collect::<Vec<_>>()
-            .join(",");
+        let mut results = Vec::with_capacity(fund_codes.len());
 
-        let params = [
-            ("pn", "1"),
-            ("pz", &fund_codes.len().to_string()),
-            ("po", "1"),
-            ("np", "1"),
-            ("ut", "bd1d9ddb04089700cf9c27f6f7426281"),
-            ("fltt", "2"),
-            ("invt", "2"),
-            ("fid", "f3"),
-            ("fs", &format!("b:{codes_str}")),
-            ("fields", "f2,f3,f4,f5,f6,f12,f14"),
-        ];
+        for code in fund_codes {
+            let secid = Self::get_secid(code);
+            let params = [
+                ("secid", secid.as_str()),
+                ("fields", "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170"),
+            ];
 
-        let url = "https://push2.eastmoney.com/api/qt/clist/get";
-        let response: StockListResponse = self.request.get_json_with_params(url, &params).await?;
+            let url = "https://push2.eastmoney.com/api/qt/stock/get";
+            debug!("Fetching ETF quote for {}", code);
 
-        let items = response.data.and_then(|d| d.diff).unwrap_or_default();
+            #[derive(Deserialize)]
+            struct ETFGetResponse {
+                data: Option<ETFGetData>,
+            }
 
-        let result: Vec<ETFCurrentData> = items
-            .into_iter()
-            .map(|item| ETFCurrentData {
-                fund_code: item.code,
-                short_name: item.name,
-                price: item.price.unwrap_or(0.0),
-                change: item.change,
-                change_pct: item.change_pct,
-                volume: item.volume.unwrap_or(0),
-                amount: item.amount.unwrap_or(0.0),
-                open: None,
-                high: None,
-                low: None,
-            })
-            .collect();
+            #[derive(Deserialize)]
+            struct ETFGetData {
+                #[serde(rename = "f57")]
+                code: String,
+                #[serde(rename = "f58")]
+                name: String,
+                #[serde(rename = "f43", default)]
+                price: Option<i64>,
+                #[serde(rename = "f44", default)]
+                high: Option<i64>,
+                #[serde(rename = "f45", default)]
+                low: Option<i64>,
+                #[serde(rename = "f46", default)]
+                open: Option<i64>,
+                #[serde(rename = "f47", default)]
+                volume: Option<u64>,
+                #[serde(rename = "f48", default)]
+                amount: Option<f64>,
+                #[serde(rename = "f169", default)]
+                change: Option<i64>,
+                #[serde(rename = "f170", default)]
+                change_pct: Option<i64>,
+            }
 
-        Ok(result)
+            match self.request.get_json_with_params(url, &params).await {
+                Ok(response) => {
+                    let response: ETFGetResponse = response;
+                    if let Some(data) = response.data {
+                        results.push(ETFCurrentData {
+                            fund_code: data.code,
+                            short_name: data.name,
+                            price: data.price.map(|v| v as f64 / 1000.0).unwrap_or(0.0),
+                            open: data.open.map(|v| v as f64 / 1000.0),
+                            high: data.high.map(|v| v as f64 / 1000.0),
+                            low: data.low.map(|v| v as f64 / 1000.0),
+                            change: data.change.map(|v| v as f64 / 1000.0),
+                            change_pct: data.change_pct.map(|v| v as f64 / 100.0),
+                            volume: data.volume.unwrap_or(0),
+                            amount: data.amount.unwrap_or(0.0),
+                        });
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to fetch ETF {}: {}", code, e);
+                }
+            }
+        }
+
+        Ok(results)
     }
 
+    /// Fetches intraday ETF minute-level data.
     async fn get_etf_min(&self, fund_code: &str) -> DataResult<Vec<ETFMinuteData>> {
         let secid = Self::get_secid(fund_code);
 
@@ -929,12 +1000,14 @@ struct BondQuoteItem {
 
 #[async_trait]
 impl BondInfoSource for EastMoneySource {
-    async fn get_all_bond_codes(&self) -> DataResult<Vec<ConvertibleBondCode>> {
+    /// Fetches all available convertible bond codes.
+    async fn get_all_bond_codes(&self, limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
         let mut all_bonds = Vec::new();
         let page_size = 50;
+        let mut page = 1;
 
-        for page in 1..=100 {
+        loop {
             let params = [
                 ("sortColumns", "PUBLIC_START_DATE"),
                 ("sortTypes", "-1"),
@@ -993,11 +1066,18 @@ impl BondInfoSource for EastMoneySource {
                     expire_date,
                     convert_price: item.convert_price,
                 });
+
+                if let Some(lim) = limit {
+                    if all_bonds.len() >= lim {
+                        return Ok(all_bonds);
+                    }
+                }
             }
 
             if count < page_size {
                 break;
             }
+            page += 1;
         }
 
         Ok(all_bonds)
@@ -1006,15 +1086,103 @@ impl BondInfoSource for EastMoneySource {
 
 #[async_trait]
 impl BondMarketSource for EastMoneySource {
+    /// Fetches real-time bond quotes.
     async fn get_bond_current(
         &self,
         bond_codes: Option<&[&str]>,
     ) -> DataResult<Vec<BondCurrentData>> {
+        if let Some(codes) = bond_codes {
+            if !codes.is_empty() {
+                return self.get_bond_current_by_codes(codes).await;
+            }
+        }
+
+        self.get_all_bond_current().await
+    }
+}
+
+impl EastMoneySource {
+    /// Fetches bond data for specific codes directly.
+    async fn get_bond_current_by_codes(&self, codes: &[&str]) -> DataResult<Vec<BondCurrentData>> {
+        let mut results = Vec::with_capacity(codes.len());
+
+        for code in codes {
+            let secid = Self::get_secid(code);
+            let params = [
+                ("secid", secid.as_str()),
+                ("fields", "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170"),
+            ];
+
+            let url = "https://push2.eastmoney.com/api/qt/stock/get";
+            debug!("Fetching bond quote for {}", code);
+
+            #[derive(Deserialize)]
+            struct BondGetResponse {
+                data: Option<BondGetData>,
+            }
+
+            #[derive(Deserialize)]
+            struct BondGetData {
+                #[serde(rename = "f57")]
+                code: String,
+                #[serde(rename = "f58")]
+                name: String,
+                #[serde(rename = "f43", default)]
+                price: Option<i64>,
+                #[serde(rename = "f44", default)]
+                high: Option<i64>,
+                #[serde(rename = "f45", default)]
+                low: Option<i64>,
+                #[serde(rename = "f46", default)]
+                open: Option<i64>,
+                #[serde(rename = "f47", default)]
+                volume: Option<u64>,
+                #[serde(rename = "f48", default)]
+                amount: Option<f64>,
+                #[serde(rename = "f60", default)]
+                pre_close: Option<i64>,
+                #[serde(rename = "f169", default)]
+                change: Option<i64>,
+                #[serde(rename = "f170", default)]
+                change_pct: Option<i64>,
+            }
+
+            match self.request.get_json_with_params(url, &params).await {
+                Ok(response) => {
+                    let response: BondGetResponse = response;
+                    if let Some(data) = response.data {
+                        results.push(BondCurrentData {
+                            bond_code: data.code,
+                            bond_name: data.name,
+                            price: data.price.map(|v| v as f64 / 1000.0).unwrap_or(0.0),
+                            open: data.open.map(|v| v as f64 / 1000.0).unwrap_or(0.0),
+                            high: data.high.map(|v| v as f64 / 1000.0).unwrap_or(0.0),
+                            low: data.low.map(|v| v as f64 / 1000.0).unwrap_or(0.0),
+                            pre_close: data.pre_close.map(|v| v as f64 / 1000.0).unwrap_or(0.0),
+                            change: data.change.map(|v| v as f64 / 1000.0).unwrap_or(0.0),
+                            change_pct: data.change_pct.map(|v| v as f64 / 100.0).unwrap_or(0.0),
+                            volume: data.volume.unwrap_or(0),
+                            amount: data.amount.unwrap_or(0.0),
+                        });
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to fetch bond {}: {}", code, e);
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Fetches all bond data with pagination.
+    async fn get_all_bond_current(&self) -> DataResult<Vec<BondCurrentData>> {
         let url = "https://push2.eastmoney.com/api/qt/clist/get";
         let mut all_bonds = Vec::new();
         let page_size = 100;
+        let mut page = 1;
 
-        for page in 1..=50 {
+        loop {
             let params = [
                 ("pn", page.to_string()),
                 ("pz", page_size.to_string()),
@@ -1050,12 +1218,6 @@ impl BondMarketSource for EastMoneySource {
             let count = items.len();
 
             for item in items {
-                if let Some(codes) = bond_codes {
-                    if !codes.contains(&item.bond_code.as_str()) {
-                        continue;
-                    }
-                }
-
                 all_bonds.push(BondCurrentData {
                     bond_code: item.bond_code,
                     bond_name: item.bond_name,
@@ -1074,12 +1236,7 @@ impl BondMarketSource for EastMoneySource {
             if count < page_size {
                 break;
             }
-
-            if let Some(codes) = bond_codes {
-                if all_bonds.len() >= codes.len() {
-                    break;
-                }
-            }
+            page += 1;
         }
 
         Ok(all_bonds)
@@ -1131,6 +1288,7 @@ struct NewsItem {
 
 #[async_trait]
 impl NewsSource for EastMoneySource {
+    /// Fetches news articles by category.
     async fn get_news(
         &self,
         category: NewsCategory,
@@ -1200,6 +1358,7 @@ impl NewsSource for EastMoneySource {
         Ok(articles)
     }
 
+    /// Fetches full news content by ID.
     async fn get_news_content(&self, news_id: &str) -> DataResult<NewsContent> {
         let url = "https://newsinfo.eastmoney.com/kuaixun/v2/api/content";
         let params = [("newsid", news_id)];
@@ -1310,6 +1469,7 @@ impl NewsSource for EastMoneySource {
         })
     }
 
+    /// Searches news articles by keyword.
     async fn search_news(
         &self,
         keyword: &str,

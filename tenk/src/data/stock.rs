@@ -19,10 +19,18 @@ pub enum Exchange {
 impl Exchange {
     /// Determines exchange from stock code prefix.
     pub fn from_stock_code(code: &str) -> Self {
-        match code.chars().next() {
-            Some('6') => Exchange::SH,
-            Some('0') | Some('3') => Exchange::SZ,
-            Some('4') | Some('8') => Exchange::BJ,
+        let first_two: String = code.chars().take(2).collect();
+        match first_two.as_str() {
+            // Shanghai: 6xxxxx stocks, 11xxxx bonds, 5xxxxx ETFs
+            s if s.starts_with('6') => Exchange::SH,
+            "11" => Exchange::SH,
+            s if s.starts_with('5') => Exchange::SH,
+            // Shenzhen: 0xxxxx/3xxxxx stocks, 12xxxx bonds, 1xxxxx ETFs
+            s if s.starts_with('0') || s.starts_with('3') => Exchange::SZ,
+            "12" => Exchange::SZ,
+            s if s.starts_with('1') && !s.starts_with("11") => Exchange::SZ,
+            // Beijing: 4xxxxx/8xxxxx
+            s if s.starts_with('4') || s.starts_with('8') => Exchange::BJ,
             _ => Exchange::Unknown,
         }
     }

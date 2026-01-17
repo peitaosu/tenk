@@ -12,8 +12,11 @@ use crate::error::DataResult;
 /// Base trait for data sources.
 #[async_trait]
 pub trait DataSource: Send + Sync {
+    /// Returns the source name.
     fn name(&self) -> &'static str;
+    /// Returns the source priority (lower is higher priority).
     fn priority(&self) -> u8;
+    /// Checks if the source is available.
     async fn is_available(&self) -> bool {
         true
     }
@@ -22,6 +25,7 @@ pub trait DataSource: Send + Sync {
 /// Stock market data source.
 #[async_trait]
 pub trait StockMarketSource: DataSource {
+    /// Fetches historical K-line market data.
     async fn get_market(
         &self,
         stock_code: &str,
@@ -30,15 +34,19 @@ pub trait StockMarketSource: DataSource {
         k_type: KLineType,
     ) -> DataResult<Vec<MarketData>>;
 
+    /// Fetches real-time market quotes.
     async fn get_market_current(&self, stock_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>>;
 
+    /// Fetches intraday minute-level data.
     async fn get_market_min(&self, stock_code: &str) -> DataResult<Vec<MinuteData>>;
 
+    /// Fetches order book data.
     async fn get_order_book(&self, stock_code: &str) -> DataResult<OrderBookData> {
         let _ = stock_code;
         Err(crate::error::DataError::not_supported("get_order_book"))
     }
 
+    /// Fetches tick-by-tick trade data.
     async fn get_ticks(&self, stock_code: &str) -> DataResult<Vec<TickData>> {
         let _ = stock_code;
         Err(crate::error::DataError::not_supported("get_ticks"))
@@ -48,8 +56,10 @@ pub trait StockMarketSource: DataSource {
 /// Stock info source.
 #[async_trait]
 pub trait StockInfoSource: DataSource {
-    async fn get_all_codes(&self) -> DataResult<Vec<StockCode>>;
+    /// Gets all stock codes, optionally limited.
+    async fn get_all_codes(&self, limit: Option<usize>) -> DataResult<Vec<StockCode>>;
 
+    /// Fetches detailed stock information.
     async fn get_stock_info(&self, stock_code: &str) -> DataResult<StockInfo> {
         let _ = stock_code;
         Err(crate::error::DataError::not_supported("get_stock_info"))
@@ -59,6 +69,7 @@ pub trait StockInfoSource: DataSource {
 /// Index market data source.
 #[async_trait]
 pub trait IndexMarketSource: DataSource {
+    /// Fetches historical index K-line market data.
     async fn get_index_market(
         &self,
         index_code: &str,
@@ -67,6 +78,7 @@ pub trait IndexMarketSource: DataSource {
         k_type: KLineType,
     ) -> DataResult<Vec<MarketData>>;
 
+    /// Fetches real-time index quotes.
     async fn get_index_current(&self, index_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>>;
 }
 
@@ -77,12 +89,14 @@ impl<T: StockMarketSource + StockInfoSource> FullStockSource for T {}
 /// ETF info source.
 #[async_trait]
 pub trait FundInfoSource: DataSource {
-    async fn get_all_etf_codes(&self) -> DataResult<Vec<ETFCode>>;
+    /// Gets all ETF codes, optionally limited.
+    async fn get_all_etf_codes(&self, limit: Option<usize>) -> DataResult<Vec<ETFCode>>;
 }
 
 /// ETF market data source.
 #[async_trait]
 pub trait FundMarketSource: DataSource {
+    /// Fetches historical ETF K-line market data.
     async fn get_etf_market(
         &self,
         fund_code: &str,
@@ -91,8 +105,10 @@ pub trait FundMarketSource: DataSource {
         k_type: KLineType,
     ) -> DataResult<Vec<ETFMarketData>>;
 
+    /// Fetches real-time ETF quotes.
     async fn get_etf_current(&self, fund_codes: &[&str]) -> DataResult<Vec<ETFCurrentData>>;
 
+    /// Fetches intraday ETF minute-level data.
     async fn get_etf_min(&self, fund_code: &str) -> DataResult<Vec<ETFMinuteData>> {
         let _ = fund_code;
         Err(crate::error::DataError::not_supported("get_etf_min"))
@@ -106,12 +122,14 @@ impl<T: FundInfoSource + FundMarketSource> FullFundSource for T {}
 /// Bond info source.
 #[async_trait]
 pub trait BondInfoSource: DataSource {
-    async fn get_all_bond_codes(&self) -> DataResult<Vec<ConvertibleBondCode>>;
+    /// Gets all bond codes, optionally limited.
+    async fn get_all_bond_codes(&self, limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>>;
 }
 
 /// Bond market data source.
 #[async_trait]
 pub trait BondMarketSource: DataSource {
+    /// Fetches real-time bond quotes.
     async fn get_bond_current(
         &self,
         bond_codes: Option<&[&str]>,

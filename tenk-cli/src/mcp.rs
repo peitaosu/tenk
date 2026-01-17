@@ -464,18 +464,22 @@ impl TenkMCPServer {
     #[tool(description = "List all available stock codes")]
     async fn stock_list(&self, params: Parameters<ListParams>) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
+        let fetch_limit = if params.0.exchange.is_some() {
+            None
+        } else {
+            params.0.limit
+        };
         let mut data = client
-            .get_all_codes()
+            .get_all_codes(fetch_limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
         if let Some(ex) = &params.0.exchange {
             let ex_upper = ex.to_uppercase();
             data.retain(|c| c.exchange.to_string() == ex_upper);
-        }
-
-        if let Some(n) = params.0.limit {
-            data.truncate(n);
+            if let Some(n) = params.0.limit {
+                data.truncate(n);
+            }
         }
 
         #[derive(Serialize)]
@@ -624,18 +628,22 @@ impl TenkMCPServer {
     #[tool(description = "List all available ETF codes")]
     async fn etf_list(&self, params: Parameters<ListParams>) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
+        let fetch_limit = if params.0.exchange.is_some() {
+            None
+        } else {
+            params.0.limit
+        };
         let mut data = client
-            .get_all_etf_codes()
+            .get_all_etf_codes(fetch_limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
         if let Some(ex) = &params.0.exchange {
             let ex_upper = ex.to_uppercase();
             data.retain(|c| c.exchange.to_string() == ex_upper);
-        }
-
-        if let Some(n) = params.0.limit {
-            data.truncate(n);
+            if let Some(n) = params.0.limit {
+                data.truncate(n);
+            }
         }
 
         #[derive(Serialize)]
@@ -743,14 +751,10 @@ impl TenkMCPServer {
     #[tool(description = "List all available convertible bond codes")]
     async fn bond_list(&self, params: Parameters<LimitParam>) -> Result<CallToolResult, McpError> {
         let client = Self::build_client();
-        let mut data = client
-            .get_all_bond_codes()
+        let data = client
+            .get_all_bond_codes(params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        if let Some(n) = params.0.limit {
-            data.truncate(n);
-        }
 
         #[derive(Serialize)]
         struct BondCode {
@@ -940,6 +944,7 @@ impl ServerHandler for TenkMCPServer {
     }
 }
 
+/// Runs the MCP server.
 pub async fn run_server() -> anyhow::Result<()> {
     use rmcp::transport::io::stdio;
 

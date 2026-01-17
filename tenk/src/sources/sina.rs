@@ -64,6 +64,7 @@ impl SinaSource {
         }
     }
 
+    /// Gets exchange prefix for stock code.
     fn get_prefix(stock_code: &str) -> &'static str {
         match Exchange::from_stock_code(stock_code) {
             Exchange::SH => "sh",
@@ -73,6 +74,7 @@ impl SinaSource {
         }
     }
 
+    /// Parses stock quote line from Sina API response.
     fn parse_quote_line(line: &str) -> Option<CurrentMarketData> {
         let eq_pos = line.find('=')?;
 
@@ -123,6 +125,7 @@ impl SinaSource {
         })
     }
 
+    /// Parses ETF quote line from Sina API response.
     fn parse_etf_quote_line(line: &str) -> Option<ETFCurrentData> {
         let eq_pos = line.find('=')?;
 
@@ -174,6 +177,7 @@ impl SinaSource {
 }
 
 impl Default for SinaSource {
+    /// Creates default Sina source.
     fn default() -> Self {
         Self::new().expect("Failed to create SinaSource")
     }
@@ -224,6 +228,7 @@ struct SinaBondItem {
     amount: String,
 }
 
+/// Deserializes a value that can be either a string or a number.
 fn deserialize_string_or_number<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -281,14 +286,17 @@ where
 
 #[async_trait]
 impl DataSource for SinaSource {
+    /// Returns the source name.
     fn name(&self) -> &'static str {
         "sina"
     }
 
+    /// Returns the source priority.
     fn priority(&self) -> u8 {
         2
     }
 
+    /// Checks if the source is available.
     async fn is_available(&self) -> bool {
         self.request
             .get("https://hq.sinajs.cn/list=s_sh000001")
@@ -299,6 +307,7 @@ impl DataSource for SinaSource {
 
 #[async_trait]
 impl StockMarketSource for SinaSource {
+    /// Fetches historical K-line market data.
     async fn get_market(
         &self,
         _stock_code: &str,
@@ -309,6 +318,7 @@ impl StockMarketSource for SinaSource {
         Err(DataError::not_supported("sina: get_market (K-line)"))
     }
 
+    /// Fetches real-time market quotes.
     async fn get_market_current(&self, stock_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
         if stock_codes.is_empty() {
             return Ok(Vec::new());
@@ -346,6 +356,7 @@ impl StockMarketSource for SinaSource {
         Ok(result)
     }
 
+    /// Fetches intraday minute-level data.
     async fn get_market_min(&self, _stock_code: &str) -> DataResult<Vec<MinuteData>> {
         Err(DataError::not_supported("sina: get_market_min"))
     }
@@ -353,12 +364,14 @@ impl StockMarketSource for SinaSource {
 
 #[async_trait]
 impl StockInfoSource for SinaSource {
-    async fn get_all_codes(&self) -> DataResult<Vec<StockCode>> {
+    /// Fetches all available stock codes.
+    async fn get_all_codes(&self, limit: Option<usize>) -> DataResult<Vec<StockCode>> {
         let url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData";
         let mut all_codes = Vec::new();
         let page_size = 80;
+        let mut page = 1;
 
-        for page in 1..=200 {
+        loop {
             let params = [
                 ("page", page.to_string()),
                 ("num", page_size.to_string()),
@@ -413,16 +426,24 @@ impl StockInfoSource for SinaSource {
                     exchange,
                     list_date: None,
                 });
+
+                if let Some(lim) = limit {
+                    if all_codes.len() >= lim {
+                        return Ok(all_codes);
+                    }
+                }
             }
 
             if count < page_size {
                 break;
             }
+            page += 1;
         }
 
         Ok(all_codes)
     }
 
+    /// Fetches detailed stock information.
     async fn get_stock_info(&self, stock_code: &str) -> DataResult<StockInfo> {
         let prefix = Self::get_prefix(stock_code);
         let url = format!("https://hq.sinajs.cn/list={prefix}{stock_code}");
@@ -473,12 +494,14 @@ impl StockInfoSource for SinaSource {
 
 #[async_trait]
 impl FundInfoSource for SinaSource {
-    async fn get_all_etf_codes(&self) -> DataResult<Vec<ETFCode>> {
+    /// Fetches all available ETF codes.
+    async fn get_all_etf_codes(&self, limit: Option<usize>) -> DataResult<Vec<ETFCode>> {
         let url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData";
         let mut all_codes = Vec::new();
         let page_size = 80;
+        let mut page = 1;
 
-        for page in 1..=100 {
+        loop {
             let params = [
                 ("page", page.to_string()),
                 ("num", page_size.to_string()),
@@ -533,11 +556,18 @@ impl FundInfoSource for SinaSource {
                     exchange,
                     net_value: item.trade.parse().ok(),
                 });
+
+                if let Some(lim) = limit {
+                    if all_codes.len() >= lim {
+                        return Ok(all_codes);
+                    }
+                }
             }
 
             if count < page_size {
                 break;
             }
+            page += 1;
         }
 
         Ok(all_codes)
@@ -558,6 +588,7 @@ struct SinaETFItem {
 
 #[async_trait]
 impl FundMarketSource for SinaSource {
+    /// Fetches historical ETF K-line market data.
     async fn get_etf_market(
         &self,
         _fund_code: &str,
@@ -568,6 +599,7 @@ impl FundMarketSource for SinaSource {
         Err(DataError::not_supported("sina: get_etf_market (K-line)"))
     }
 
+    /// Fetches real-time ETF quotes.
     async fn get_etf_current(&self, fund_codes: &[&str]) -> DataResult<Vec<ETFCurrentData>> {
         if fund_codes.is_empty() {
             return Ok(Vec::new());
@@ -605,6 +637,7 @@ impl FundMarketSource for SinaSource {
         Ok(result)
     }
 
+    /// Fetches intraday ETF minute-level data.
     async fn get_etf_min(&self, _fund_code: &str) -> DataResult<Vec<ETFMinuteData>> {
         Err(DataError::not_supported("sina: get_etf_min"))
     }
@@ -612,22 +645,117 @@ impl FundMarketSource for SinaSource {
 
 #[async_trait]
 impl BondInfoSource for SinaSource {
-    async fn get_all_bond_codes(&self) -> DataResult<Vec<ConvertibleBondCode>> {
+    /// Fetches all available convertible bond codes.
+    async fn get_all_bond_codes(&self, _limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>> {
         Err(DataError::not_supported("sina: get_all_bond_codes"))
     }
 }
 
 #[async_trait]
 impl BondMarketSource for SinaSource {
+    /// Fetches real-time bond quotes.
     async fn get_bond_current(
         &self,
         bond_codes: Option<&[&str]>,
     ) -> DataResult<Vec<BondCurrentData>> {
+        if let Some(codes) = bond_codes {
+            if !codes.is_empty() {
+                return self.get_bond_current_by_codes(codes).await;
+            }
+        }
+
+        self.get_all_bond_current().await
+    }
+}
+
+impl SinaSource {
+    /// Parses bond quote line from hq.sinajs.cn response.
+    fn parse_bond_quote_line(line: &str) -> Option<BondCurrentData> {
+        let eq_pos = line.find('=')?;
+        if eq_pos < 6 {
+            return None;
+        }
+
+        let code_start = eq_pos - 6;
+        let bond_code = &line[code_start..eq_pos];
+
+        let quote_start = line.find('"')? + 1;
+        let quote_end = line.rfind('"')?;
+        if quote_start >= quote_end {
+            return None;
+        }
+
+        let data = &line[quote_start..quote_end];
+        let parts: Vec<&str> = data.split(',').collect();
+
+        if parts.len() < 10 {
+            return None;
+        }
+
+        let bond_name = parts[0].to_string();
+        let open: f64 = parts[1].parse().unwrap_or(0.0);
+        let pre_close: f64 = parts[2].parse().unwrap_or(0.0);
+        let price: f64 = parts[3].parse().unwrap_or(0.0);
+        let high: f64 = parts[4].parse().unwrap_or(0.0);
+        let low: f64 = parts[5].parse().unwrap_or(0.0);
+        let volume: u64 = parts[8].parse().unwrap_or(0);
+        let amount: f64 = parts[9].parse().unwrap_or(0.0);
+
+        let change = price - pre_close;
+        let change_pct = if pre_close > 0.0 {
+            (change / pre_close) * 100.0
+        } else {
+            0.0
+        };
+
+        Some(BondCurrentData {
+            bond_code: bond_code.to_string(),
+            bond_name,
+            price,
+            open,
+            high,
+            low,
+            pre_close,
+            change,
+            change_pct,
+            volume,
+            amount,
+        })
+    }
+
+    /// Fetches bond data for specific codes directly.
+    async fn get_bond_current_by_codes(&self, codes: &[&str]) -> DataResult<Vec<BondCurrentData>> {
+        let symbols: Vec<String> = codes
+            .iter()
+            .map(|c| format!("{}{}", Self::get_prefix(c), c))
+            .collect();
+        let symbols_str = symbols.join(",");
+
+        let url = format!("https://hq.sinajs.cn/list={}", symbols_str);
+        debug!("Fetching bond quotes for {} codes from Sina", codes.len());
+
+        let response = self.request.get(&url).await?;
+        let text = response.text().await.map_err(DataError::Network)?;
+
+        let mut results = Vec::with_capacity(codes.len());
+
+        for line in text.lines() {
+            if let Some(data) = Self::parse_bond_quote_line(line) {
+                results.push(data);
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Fetches all bond data with pagination.
+    async fn get_all_bond_current(&self) -> DataResult<Vec<BondCurrentData>> {
         let url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeDataSimple";
         let mut all_bonds = Vec::new();
         let page_size = 80;
+        let mut page = 1;
 
-        for page in 1..=100 {
+        loop {
             let params = [
                 ("page", page.to_string()),
                 ("num", page_size.to_string()),
@@ -660,6 +788,7 @@ impl BondMarketSource for SinaSource {
                 if page == 1 {
                     break;
                 }
+                page += 1;
                 continue;
             }
 
@@ -682,12 +811,6 @@ impl BondMarketSource for SinaSource {
             let count = items.len();
 
             for item in items {
-                if let Some(codes) = bond_codes {
-                    if !codes.contains(&item.code.as_str()) {
-                        continue;
-                    }
-                }
-
                 let price: f64 = item.trade.parse().unwrap_or(0.0);
                 let change: f64 = item.pricechange.parse().unwrap_or(0.0);
                 let change_pct: f64 = item.changepercent.parse().unwrap_or(0.0);
@@ -716,12 +839,7 @@ impl BondMarketSource for SinaSource {
             if count < page_size {
                 break;
             }
-
-            if let Some(codes) = bond_codes {
-                if all_bonds.len() >= codes.len() {
-                    break;
-                }
-            }
+            page += 1;
         }
 
         let mut seen = std::collections::HashSet::new();

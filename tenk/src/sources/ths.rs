@@ -82,6 +82,7 @@ impl THSSource {
         }
     }
 
+    /// Converts KLineType to THS API code.
     fn kline_type_to_code(k_type: KLineType) -> &'static str {
         match k_type {
             KLineType::Daily => "01",
@@ -91,6 +92,7 @@ impl THSSource {
         }
     }
 
+    /// Extracts JSON from JSONP response.
     fn parse_jsonp(text: &str) -> Option<&str> {
         let start = text.find('{')?;
         let end = text.rfind('}')?;
@@ -103,6 +105,7 @@ impl THSSource {
 }
 
 impl Default for THSSource {
+    /// Creates default THS source.
     fn default() -> Self {
         Self::new().expect("Failed to create THSSource")
     }
@@ -159,6 +162,7 @@ struct KLineResponse {
     data: String,
 }
 
+/// Deserializes a value that can be either a number or a string.
 fn deserialize_total<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -202,14 +206,17 @@ where
 
 #[async_trait]
 impl DataSource for THSSource {
+    /// Returns the source name.
     fn name(&self) -> &'static str {
         "ths"
     }
 
+    /// Returns the source priority.
     fn priority(&self) -> u8 {
         3
     }
 
+    /// Checks if the source is available.
     async fn is_available(&self) -> bool {
         self.data_request
             .get("https://data.10jqka.com.cn/ipo/kzz/")
@@ -220,7 +227,8 @@ impl DataSource for THSSource {
 
 #[async_trait]
 impl BondInfoSource for THSSource {
-    async fn get_all_bond_codes(&self) -> DataResult<Vec<ConvertibleBondCode>> {
+    /// Fetches all available convertible bond codes.
+    async fn get_all_bond_codes(&self, limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>> {
         let url = "https://data.10jqka.com.cn/ipo/kzz/";
         debug!("Fetching bond codes from THS");
 
@@ -237,7 +245,7 @@ impl BondInfoSource for THSSource {
             )));
         }
 
-        let bonds: Vec<ConvertibleBondCode> = data
+        let mut bonds: Vec<ConvertibleBondCode> = data
             .list
             .into_iter()
             .map(|item| {
@@ -273,12 +281,17 @@ impl BondInfoSource for THSSource {
             })
             .collect();
 
+        if let Some(lim) = limit {
+            bonds.truncate(lim);
+        }
+
         Ok(bonds)
     }
 }
 
 #[async_trait]
 impl BondMarketSource for THSSource {
+    /// Fetches real-time bond quotes.
     async fn get_bond_current(
         &self,
         _bond_codes: Option<&[&str]>,
@@ -289,6 +302,7 @@ impl BondMarketSource for THSSource {
 
 #[async_trait]
 impl StockMarketSource for THSSource {
+    /// Fetches historical K-line market data.
     async fn get_market(
         &self,
         stock_code: &str,
@@ -377,6 +391,7 @@ impl StockMarketSource for THSSource {
         Ok(result)
     }
 
+    /// Fetches real-time market quotes.
     async fn get_market_current(&self, stock_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
         let mut result = Vec::new();
 
@@ -461,6 +476,7 @@ impl StockMarketSource for THSSource {
         Ok(result)
     }
 
+    /// Fetches intraday minute-level data.
     async fn get_market_min(&self, stock_code: &str) -> DataResult<Vec<MinuteData>> {
         let url = format!("http://d.10jqka.com.cn/v6/time/hs_{stock_code}/last.js");
         debug!("Fetching stock minute data from THS: {}", stock_code);
@@ -544,10 +560,12 @@ impl StockMarketSource for THSSource {
 
 #[async_trait]
 impl StockInfoSource for THSSource {
-    async fn get_all_codes(&self) -> DataResult<Vec<StockCode>> {
+    /// Fetches all available stock codes.
+    async fn get_all_codes(&self, _limit: Option<usize>) -> DataResult<Vec<StockCode>> {
         Err(DataError::not_supported("ths: get_all_codes"))
     }
 
+    /// Fetches detailed stock information.
     async fn get_stock_info(&self, _stock_code: &str) -> DataResult<StockInfo> {
         Err(DataError::not_supported("ths: get_stock_info"))
     }
@@ -555,13 +573,15 @@ impl StockInfoSource for THSSource {
 
 #[async_trait]
 impl FundInfoSource for THSSource {
-    async fn get_all_etf_codes(&self) -> DataResult<Vec<ETFCode>> {
+    /// Fetches all available ETF codes.
+    async fn get_all_etf_codes(&self, _limit: Option<usize>) -> DataResult<Vec<ETFCode>> {
         Err(DataError::not_supported("ths: get_all_etf_codes"))
     }
 }
 
 #[async_trait]
 impl FundMarketSource for THSSource {
+    /// Fetches historical ETF K-line market data.
     async fn get_etf_market(
         &self,
         fund_code: &str,
@@ -643,6 +663,7 @@ impl FundMarketSource for THSSource {
         Ok(result)
     }
 
+    /// Fetches real-time ETF quotes.
     async fn get_etf_current(&self, fund_codes: &[&str]) -> DataResult<Vec<ETFCurrentData>> {
         let mut result = Vec::new();
 
@@ -726,6 +747,7 @@ impl FundMarketSource for THSSource {
         Ok(result)
     }
 
+    /// Fetches intraday ETF minute-level data.
     async fn get_etf_min(&self, fund_code: &str) -> DataResult<Vec<ETFMinuteData>> {
         let url = format!("http://d.10jqka.com.cn/v6/time/hs_{fund_code}/last.js");
         debug!("Fetching ETF minute data from THS: {}", fund_code);
