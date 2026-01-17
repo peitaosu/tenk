@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use comfy_table::{Cell, CellAlignment};
+use rust_i18n::t;
 use tenk::{DataClient, ETFCode, ETFCurrentData, ETFMarketData, ETFMinuteData};
 
 use crate::ETFAction;
@@ -63,12 +64,12 @@ pub async fn handle(action: ETFAction, client: &DataClient, config: &OutputConfi
 impl TableRow for ETFCurrentData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Price").set_alignment(CellAlignment::Right),
-            Cell::new("Change%").set_alignment(CellAlignment::Right),
-            Cell::new("Volume").set_alignment(CellAlignment::Right),
-            Cell::new("Amount").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_pct")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.volume")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.amount")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -88,13 +89,13 @@ impl TableRow for ETFCurrentData {
 impl TableRow for ETFMarketData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Date"),
-            Cell::new("Open").set_alignment(CellAlignment::Right),
-            Cell::new("High").set_alignment(CellAlignment::Right),
-            Cell::new("Low").set_alignment(CellAlignment::Right),
-            Cell::new("Close").set_alignment(CellAlignment::Right),
-            Cell::new("Volume").set_alignment(CellAlignment::Right),
-            Cell::new("Change%").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.open")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.high")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.low")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.close")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.volume")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_pct")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -115,12 +116,12 @@ impl TableRow for ETFMarketData {
 impl TableRow for ETFMinuteData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Time"),
-            Cell::new("Price").set_alignment(CellAlignment::Right),
-            Cell::new("AvgPrice").set_alignment(CellAlignment::Right),
-            Cell::new("Change%").set_alignment(CellAlignment::Right),
-            Cell::new("Volume").set_alignment(CellAlignment::Right),
-            Cell::new("Amount").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.time")),
+            Cell::new(t!("headers.price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.avg_price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_pct")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.volume")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.amount")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -139,10 +140,10 @@ impl TableRow for ETFMinuteData {
 impl TableRow for ETFCode {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Exchange"),
-            Cell::new("NAV").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.exchange")),
+            Cell::new(t!("headers.nav")).set_alignment(CellAlignment::Right),
         ]
     }
 

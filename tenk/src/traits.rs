@@ -126,7 +126,10 @@ impl<T: FundInfoSource + FundMarketSource> FullFundSource for T {}
 #[async_trait]
 pub trait BondInfoSource: DataSource {
     /// Gets all bond codes, optionally limited.
-    async fn get_all_bond_codes(&self, limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>>;
+    async fn get_all_bond_codes(
+        &self,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<ConvertibleBondCode>>;
 }
 
 /// Bond market data source.
@@ -187,10 +190,7 @@ pub trait CapitalFlowSource: DataSource {
 #[async_trait]
 pub trait BillboardSource: DataSource {
     /// Get Billboard list by date.
-    async fn get_billboard_list(
-        &self,
-        date: Option<&str>,
-    ) -> DataResult<Vec<BillboardItem>>;
+    async fn get_billboard_list(&self, date: Option<&str>) -> DataResult<Vec<BillboardItem>>;
 
     /// Get Billboard details for a stock.
     async fn get_billboard_detail(

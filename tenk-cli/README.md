@@ -76,8 +76,29 @@ tenk [OPTIONS] <COMMAND>
 | `-f, --format <FORMAT>` | Output format: `json`, `table` (default), `csv` |
 | `-o, --output <FILE>` | Save output to file instead of stdout |
 | `-s, --source <SOURCE>` | Data sources: `eastmoney`, `sina`, `ths` (default: all) |
+| `-L, --lang <LANG>` | Output language: `en` (default), `zh-CN` |
 | `--proxy <URL>` | HTTP proxy URL |
 | `-v, --verbose` | Enable verbose/debug output |
+
+### Language Support
+
+The CLI supports multiple output languages for table headers, messages, and labels:
+
+```bash
+# English output (default)
+tenk stock list -l 3
+
+# Chinese output
+tenk --lang zh-CN stock list -l 3
+
+# Or use environment variable
+export TENK_LANG=zh-CN
+tenk stock list -l 3
+```
+
+Supported languages:
+- `en` - English (default)
+- `zh-CN` - Simplified Chinese
 
 ## Commands
 

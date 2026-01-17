@@ -3,6 +3,7 @@
 use anyhow::Result;
 use colored::Colorize;
 use comfy_table::{Cell, CellAlignment};
+use rust_i18n::t;
 use tenk::{BondCurrentData, ConvertibleBondCode, DataClient};
 
 use crate::BondAction;
@@ -36,7 +37,7 @@ pub async fn handle(action: BondAction, client: &DataClient, config: &OutputConf
                         .unwrap_or(std::cmp::Ordering::Equal)
                 });
                 data.truncate(n);
-                eprintln!("{}", format!("Top {} Gainers:", n).red().bold());
+                eprintln!("{}", t!("messages.top_gainers", count = n).red().bold());
             } else if let Some(n) = top_losers {
                 data.retain(|b| b.change_pct < 0.0 && b.price > 0.0);
                 data.sort_by(|a, b| {
@@ -45,12 +46,12 @@ pub async fn handle(action: BondAction, client: &DataClient, config: &OutputConf
                         .unwrap_or(std::cmp::Ordering::Equal)
                 });
                 data.truncate(n);
-                eprintln!("{}", format!("Top {} Losers:", n).green().bold());
+                eprintln!("{}", t!("messages.top_losers", count = n).green().bold());
             } else if let Some(n) = top_volume {
                 data.retain(|b| b.volume > 0 && b.price > 0.0);
                 data.sort_by(|a, b| b.volume.cmp(&a.volume));
                 data.truncate(n);
-                eprintln!("{}", format!("Top {} by Volume:", n).cyan().bold());
+                eprintln!("{}", t!("messages.top_volume", count = n).cyan().bold());
             }
 
             print_output(&data, config);
@@ -66,12 +67,12 @@ pub async fn handle(action: BondAction, client: &DataClient, config: &OutputConf
 impl TableRow for BondCurrentData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Price").set_alignment(CellAlignment::Right),
-            Cell::new("Change%").set_alignment(CellAlignment::Right),
-            Cell::new("Volume").set_alignment(CellAlignment::Right),
-            Cell::new("Amount").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_pct")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.volume")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.amount")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -90,11 +91,11 @@ impl TableRow for BondCurrentData {
 impl TableRow for ConvertibleBondCode {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Bond Code"),
-            Cell::new("Bond Name"),
-            Cell::new("Stock"),
-            Cell::new("Convert Price").set_alignment(CellAlignment::Right),
-            Cell::new("List Date"),
+            Cell::new(t!("headers.bond_code")),
+            Cell::new(t!("headers.bond_name")),
+            Cell::new(t!("headers.stock")),
+            Cell::new(t!("headers.convert_price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.list_date")),
         ]
     }
 

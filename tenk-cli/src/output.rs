@@ -5,9 +5,12 @@ use colored::Colorize;
 use comfy_table::{
     Cell, CellAlignment, Color, ContentArrangement, Table, presets::UTF8_FULL_CONDENSED,
 };
+use rust_i18n::t;
 use serde::Serialize;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
+
+use crate::i18n::{format_amount_i18n, format_volume_i18n};
 
 /// Output format for CLI results.
 #[derive(Clone, Copy, ValueEnum, Debug, Default)]
@@ -34,7 +37,7 @@ pub struct OutputConfig {
 pub fn print_output<T: Serialize + TableRow>(data: &[T], config: &OutputConfig) {
     if let Some(ref path) = config.file {
         if let Err(e) = write_output_to_file(data, config.format, path) {
-            eprintln!("{}: {}", "File write error".red(), e);
+            eprintln!("{}: {}", t!("messages.file_write_error").red(), e);
         }
     } else {
         match config.format {
@@ -49,7 +52,7 @@ pub fn print_output<T: Serialize + TableRow>(data: &[T], config: &OutputConfig) 
 pub fn print_single<T: Serialize + SingleDisplay>(data: &T, config: &OutputConfig) {
     if let Some(ref path) = config.file {
         if let Err(e) = write_single_to_file(data, config.format, path) {
-            eprintln!("{}: {}", "File write error".red(), e);
+            eprintln!("{}: {}", t!("messages.file_write_error").red(), e);
         }
     } else {
         match config.format {
@@ -79,7 +82,7 @@ fn write_output_to_file<T: Serialize + TableRow>(
         }
         OutputFormat::Table => {
             if data.is_empty() {
-                writeln!(writer, "No data available.")?;
+                writeln!(writer, "{}", t!("messages.no_data"))?;
             } else {
                 let mut table = Table::new();
                 table
@@ -95,19 +98,24 @@ fn write_output_to_file<T: Serialize + TableRow>(
         OutputFormat::CSV => {
             writer.write_all(&[0xEF, 0xBB, 0xBF])?;
             let mut csv_writer = csv::Writer::from_writer(writer);
+
+            csv_writer
+                .write_record(T::header_strings())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
             for item in data {
                 csv_writer
-                    .serialize(item)
+                    .write_record(item.row_strings())
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             }
             csv_writer.flush()?;
-            eprintln!("{} {}", "Saved to:".green(), path);
+            eprintln!("{} {}", t!("messages.saved_to").green(), path);
             return Ok(());
         }
     }
 
     writer.flush()?;
-    eprintln!("{} {}", "Saved to:".green(), path);
+    eprintln!("{} {}", t!("messages.saved_to").green(), path);
     Ok(())
 }
 
@@ -133,7 +141,7 @@ fn write_single_to_file<T: Serialize>(
     }
 
     writer.flush()?;
-    eprintln!("{} {}", "Saved to:".green(), path);
+    eprintln!("{} {}", t!("messages.saved_to").green(), path);
     Ok(())
 }
 
@@ -145,7 +153,7 @@ fn print_json<T: Serialize>(data: &[T]) {
 
 fn print_table<T: TableRow>(data: &[T]) {
     if data.is_empty() {
-        println!("{}", "No data available.".yellow());
+        println!("{}", t!("messages.no_data").yellow());
         return;
     }
 
@@ -171,15 +179,20 @@ fn print_csv<T: TableRow + Serialize>(data: &[T]) {
     let stdout = io::stdout();
     let mut writer = csv::Writer::from_writer(stdout.lock());
 
+    if let Err(e) = writer.write_record(T::header_strings()) {
+        eprintln!("{}: {}", t!("messages.csv_write_error").red(), e);
+        return;
+    }
+
     for item in data {
-        if let Err(e) = writer.serialize(item) {
-            eprintln!("{}: {}", "CSV write error".red(), e);
+        if let Err(e) = writer.write_record(item.row_strings()) {
+            eprintln!("{}: {}", t!("messages.csv_write_error").red(), e);
             return;
         }
     }
 
     if let Err(e) = writer.flush() {
-        eprintln!("{}: {}", "CSV flush error".red(), e);
+        eprintln!("{}: {}", t!("messages.csv_flush_error").red(), e);
     }
 }
 
@@ -187,6 +200,20 @@ fn print_csv<T: TableRow + Serialize>(data: &[T]) {
 pub trait TableRow {
     fn headers() -> Vec<Cell>;
     fn row(&self) -> Vec<Cell>;
+
+    fn header_strings() -> Vec<String> {
+        Self::headers()
+            .into_iter()
+            .map(|c| c.content().to_string())
+            .collect()
+    }
+
+    fn row_strings(&self) -> Vec<String> {
+        self.row()
+            .into_iter()
+            .map(|c| c.content().to_string())
+            .collect()
+    }
 }
 
 /// Trait for single item display.
@@ -196,24 +223,12 @@ pub trait SingleDisplay {
 
 /// Formats volume with unit suffix.
 pub fn format_volume(vol: u64) -> String {
-    if vol >= 100_000_000 {
-        format!("{} ({:.2}亿)", vol, vol as f64 / 100_000_000.0)
-    } else if vol >= 10_000 {
-        format!("{} ({:.2}万)", vol, vol as f64 / 10_000.0)
-    } else {
-        format!("{}", vol)
-    }
+    format_volume_i18n(vol)
 }
 
 /// Formats amount with unit suffix.
 pub fn format_amount(amount: f64) -> String {
-    if amount >= 100_000_000.0 {
-        format!("{:.0} ({:.2}亿)", amount, amount / 100_000_000.0)
-    } else if amount >= 10_000.0 {
-        format!("{:.0} ({:.2}万)", amount, amount / 10_000.0)
-    } else {
-        format!("{:.2}", amount)
-    }
+    format_amount_i18n(amount)
 }
 
 /// Formats change percentage with sign.

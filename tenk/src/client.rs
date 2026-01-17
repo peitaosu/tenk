@@ -472,7 +472,10 @@ impl DataClient {
     }
 
     /// Fetches all available convertible bond codes.
-    pub async fn get_all_bond_codes(&self, limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>> {
+    pub async fn get_all_bond_codes(
+        &self,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<ConvertibleBondCode>> {
         if self.bond_info_sources.is_empty() {
             return Err(DataError::custom("No bond info sources configured"));
         }

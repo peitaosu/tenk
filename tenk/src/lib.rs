@@ -11,10 +11,10 @@ pub use client::DataClient;
 pub use data::{
     AdjustType, BillboardDetail, BillboardItem, BlockTradeData, BondCurrentData, CapitalFlowData,
     CapitalFlowHistory, ConvertibleBondCode, CurrentMarketData, DividendData, ETFCode,
-    ETFCurrentData, ETFMarketData, ETFMinuteData, EarningsForecast, Exchange, FundHolding,
-    IPOData, InstitutionalResearchData, KLineType, MarginTradingData, MarketData, MinuteData,
-    NewsArticle, NewsCategory, NewsContent, NewsListResult, NewsSearchResult, OrderBookData,
-    ResearchReportData, StockCode, StockConnectData, StockInfo, StockValuation, TickData, TopHolder,
+    ETFCurrentData, ETFMarketData, ETFMinuteData, EarningsForecast, Exchange, FundHolding, IPOData,
+    InstitutionalResearchData, KLineType, MarginTradingData, MarketData, MinuteData, NewsArticle,
+    NewsCategory, NewsContent, NewsListResult, NewsSearchResult, OrderBookData, ResearchReportData,
+    StockCode, StockConnectData, StockInfo, StockValuation, TickData, TopHolder,
 };
 pub use error::{DataError, DataResult};
 pub use request::{RequestConfig, RequestManager};

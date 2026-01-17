@@ -1,11 +1,16 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
+use rust_i18n::t;
 use tenk::sources::{EastMoneySource, SinaSource, THSSource};
 use tenk::{DataClient, KLineType};
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+// Initialize i18n with locales directory and fallback language
+rust_i18n::i18n!("locales", fallback = "en");
+
 mod commands;
+mod i18n;
 mod mcp;
 mod output;
 
@@ -44,6 +49,10 @@ pub struct Cli {
     /// HTTP proxy URL
     #[arg(long, global = true)]
     proxy: Option<String>,
+
+    /// Output language (en, zh-CN)
+    #[arg(short = 'L', long = "lang", global = true, default_value = "en")]
+    lang: String,
 
     /// Subcommand to execute
     #[command(subcommand)]
@@ -468,6 +477,8 @@ fn build_client(sources: &[Source]) -> DataClient {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    i18n::init(&cli.lang);
+
     if cli.mcp {
         tracing_subscriber::fmt()
             .with_env_filter(
@@ -479,9 +490,9 @@ async fn main() -> Result<()> {
         return mcp::run_server().await;
     }
 
-    let command = cli.command.ok_or_else(|| {
-        anyhow::anyhow!("No command provided. Use --help for usage or --mcp to run as MCP server.")
-    })?;
+    let command = cli
+        .command
+        .ok_or_else(|| anyhow::anyhow!("{}", t!("messages.no_command")))?;
 
     let filter = if cli.verbose { "debug" } else { "warn" };
     tracing_subscriber::registry()

@@ -4,6 +4,7 @@ use anyhow::Result;
 use chrono::{Local, TimeZone};
 use colored::Colorize;
 use comfy_table::Cell;
+use rust_i18n::t;
 use tenk::{DataClient, NewsArticle, NewsCategory};
 
 use crate::NewsAction;
@@ -28,11 +29,11 @@ pub async fn handle(action: NewsAction, client: &DataClient, config: &OutputConf
         } => {
             let data = client.search_news(&keyword, page, limit).await?;
             if data.is_empty() {
-                eprintln!("{}", "No news found.".yellow());
+                eprintln!("{}", t!("messages.no_news_found").yellow());
             } else {
                 eprintln!(
                     "{}",
-                    format!("Found {} news for '{}':", data.len(), keyword)
+                    t!("messages.found_news", count = data.len(), keyword = keyword)
                         .cyan()
                         .bold()
                 );
@@ -62,27 +63,27 @@ pub async fn handle(action: NewsAction, client: &DataClient, config: &OutputConf
                     println!("{}", "─".repeat(60).bright_black());
                     println!(
                         "{} {} | {} {}",
-                        "Source:".bright_black(),
+                        t!("labels.source").bright_black(),
                         content.source.yellow(),
-                        "Time:".bright_black(),
+                        t!("labels.time").bright_black(),
                         local_time.bright_black()
                     );
                     if let Some(ref author) = content.author {
-                        println!("{} {}", "Author:".bright_black(), author);
+                        println!("{} {}", t!("labels.author").bright_black(), author);
                     }
                     if !content.related_stocks.is_empty() {
                         let (stocks, sectors) = format_related_stocks(&content.related_stocks);
                         if !stocks.is_empty() {
                             println!(
                                 "{} {}",
-                                "Stocks:".bright_black(),
+                                t!("labels.stocks").bright_black(),
                                 stocks.join("  ").yellow()
                             );
                         }
                         if !sectors.is_empty() {
                             println!(
                                 "{} {}",
-                                "Sectors:".bright_black(),
+                                t!("labels.sectors").bright_black(),
                                 sectors.join("  ").magenta()
                             );
                         }
@@ -143,10 +144,10 @@ fn parse_category(s: &str) -> NewsCategory {
 impl TableRow for NewsArticle {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("ID"),
-            Cell::new("Time"),
-            Cell::new("Title"),
-            Cell::new("Source"),
+            Cell::new(t!("headers.id")),
+            Cell::new(t!("headers.time")),
+            Cell::new(t!("headers.title")),
+            Cell::new(t!("headers.source")),
         ]
     }
 

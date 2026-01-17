@@ -3,6 +3,7 @@
 use anyhow::Result;
 use colored::Colorize;
 use comfy_table::{Cell, CellAlignment, Color};
+use rust_i18n::t;
 use tenk::sources::EastMoneySource;
 use tenk::traits::{DividendSource, HoldingsSource, ValuationSource};
 use tenk::{
@@ -11,6 +12,7 @@ use tenk::{
 };
 
 use crate::StockAction;
+use crate::i18n::pad_display_width;
 use crate::output::{
     OutputConfig, SingleDisplay, TableRow, change_pct_cell, format_amount, format_volume,
     price_cell, print_output, print_single, right_cell,
@@ -102,12 +104,12 @@ pub async fn handle(action: StockAction, client: &DataClient, config: &OutputCon
 impl TableRow for CurrentMarketData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Price").set_alignment(CellAlignment::Right),
-            Cell::new("Change%").set_alignment(CellAlignment::Right),
-            Cell::new("Volume").set_alignment(CellAlignment::Right),
-            Cell::new("Amount").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_pct")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.volume")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.amount")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -126,13 +128,13 @@ impl TableRow for CurrentMarketData {
 impl TableRow for MarketData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Date"),
-            Cell::new("Open").set_alignment(CellAlignment::Right),
-            Cell::new("High").set_alignment(CellAlignment::Right),
-            Cell::new("Low").set_alignment(CellAlignment::Right),
-            Cell::new("Close").set_alignment(CellAlignment::Right),
-            Cell::new("Volume").set_alignment(CellAlignment::Right),
-            Cell::new("Change%").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.open")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.high")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.low")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.close")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.volume")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_pct")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -152,12 +154,12 @@ impl TableRow for MarketData {
 impl TableRow for MinuteData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Time"),
-            Cell::new("Price").set_alignment(CellAlignment::Right),
-            Cell::new("AvgPrice").set_alignment(CellAlignment::Right),
-            Cell::new("Change%").set_alignment(CellAlignment::Right),
-            Cell::new("Volume").set_alignment(CellAlignment::Right),
-            Cell::new("Amount").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.time")),
+            Cell::new(t!("headers.price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.avg_price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_pct")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.volume")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.amount")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -176,18 +178,18 @@ impl TableRow for MinuteData {
 impl TableRow for TickData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Time"),
-            Cell::new("Price").set_alignment(CellAlignment::Right),
-            Cell::new("Volume").set_alignment(CellAlignment::Right),
-            Cell::new("Direction"),
+            Cell::new(t!("headers.time")),
+            Cell::new(t!("headers.price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.volume")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.direction")),
         ]
     }
 
     fn row(&self) -> Vec<Cell> {
         let (dir_text, dir_color) = match self.direction {
-            'B' | 'b' => ("BUY", Color::Red),
-            'S' | 's' => ("SELL", Color::Green),
-            _ => ("N/A", Color::White),
+            'B' | 'b' => (t!("trade.buy"), Color::Red),
+            'S' | 's' => (t!("trade.sell"), Color::Green),
+            _ => (t!("trade.na"), Color::White),
         };
         vec![
             Cell::new(self.trade_time.format("%H:%M:%S").to_string()),
@@ -200,7 +202,11 @@ impl TableRow for TickData {
 
 impl TableRow for StockCode {
     fn headers() -> Vec<Cell> {
-        vec![Cell::new("Code"), Cell::new("Name"), Cell::new("Exchange")]
+        vec![
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.exchange")),
+        ]
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -216,13 +222,13 @@ impl SingleDisplay for OrderBookData {
     fn print_single(&self) {
         println!(
             "{} {} ({})",
-            "Order Book:".cyan().bold(),
+            t!("labels.order_book").cyan().bold(),
             self.stock_code.white().bold(),
             self.short_name
         );
         println!("{}", "═".repeat(40).cyan());
 
-        println!("\n{}", "Sell (Ask)".red().bold());
+        println!("\n{}", t!("labels.sell_ask").red().bold());
         for i in (0..5).rev() {
             if self.sell_prices[i] > 0.0 {
                 println!(
@@ -236,7 +242,7 @@ impl SingleDisplay for OrderBookData {
 
         println!("{}", "─".repeat(35));
 
-        println!("{}", "Buy (Bid)".green().bold());
+        println!("{}", t!("labels.buy_bid").green().bold());
         for i in 0..5 {
             if self.buy_prices[i] > 0.0 {
                 println!(
@@ -252,99 +258,173 @@ impl SingleDisplay for OrderBookData {
 
 impl SingleDisplay for StockInfo {
     fn print_single(&self) {
+        const LABEL_WIDTH: usize = 15;
         println!(
             "{} {} ({})",
-            "Stock Info:".cyan().bold(),
+            t!("labels.stock_info").cyan().bold(),
             self.stock_code.white().bold(),
             self.short_name
         );
         println!("{}", "═".repeat(50).cyan());
-        println!("  {:<15} {}", "Full Name:".dimmed(), self.full_name);
-        println!("  {:<15} {}", "Exchange:".dimmed(), self.exchange);
+        println!(
+            "  {} {}",
+            pad_display_width(&t!("labels.full_name"), LABEL_WIDTH).dimmed(),
+            self.full_name
+        );
+        println!(
+            "  {} {}",
+            pad_display_width(&t!("labels.exchange"), LABEL_WIDTH).dimmed(),
+            self.exchange
+        );
         if let Some(industry) = &self.industry {
-            println!("  {:<15} {}", "Industry:".dimmed(), industry);
+            println!(
+                "  {} {}",
+                pad_display_width(&t!("labels.industry"), LABEL_WIDTH).dimmed(),
+                industry
+            );
         }
         if let Some(total) = self.total_shares {
             println!(
-                "  {:<15} {}",
-                "Total Shares:".dimmed(),
+                "  {} {}",
+                pad_display_width(&t!("labels.total_shares"), LABEL_WIDTH).dimmed(),
                 format_volume(total)
             );
         }
         if let Some(circ) = self.circulating_shares {
-            println!("  {:<15} {}", "Circulating:".dimmed(), format_volume(circ));
+            println!(
+                "  {} {}",
+                pad_display_width(&t!("labels.circulating"), LABEL_WIDTH).dimmed(),
+                format_volume(circ)
+            );
         }
         if let Some(date) = self.list_date {
-            println!("  {:<15} {}", "List Date:".dimmed(), date);
+            println!(
+                "  {} {}",
+                pad_display_width(&t!("labels.list_date"), LABEL_WIDTH).dimmed(),
+                date
+            );
         }
     }
 }
 
 impl SingleDisplay for StockValuation {
     fn print_single(&self) {
+        const LABEL_WIDTH: usize = 18;
         println!(
             "{} {} ({})",
-            "Valuation:".cyan().bold(),
+            t!("labels.valuation").cyan().bold(),
             self.stock_code.white().bold(),
             self.stock_name
         );
         println!("{}", "═".repeat(55).cyan());
         println!(
-            "  {:<18} {:.2}",
-            "Price:".dimmed(),
+            "  {} {:.2}",
+            pad_display_width(&t!("labels.price"), LABEL_WIDTH).dimmed(),
             self.price
         );
         println!(
-            "  {:<18} {}",
-            "Market Cap:".dimmed(),
+            "  {} {}",
+            pad_display_width(&t!("labels.market_cap"), LABEL_WIDTH).dimmed(),
             format_amount(self.market_cap)
         );
         println!(
-            "  {:<18} {}",
-            "Float Cap:".dimmed(),
+            "  {} {}",
+            pad_display_width(&t!("labels.float_cap"), LABEL_WIDTH).dimmed(),
             format_amount(self.float_cap)
         );
         println!("{}", "─".repeat(55));
         if let Some(pe) = self.pe_ttm {
-            println!("  {:<18} {:.2}", "PE (TTM):".dimmed(), pe);
+            println!(
+                "  {} {:.2}",
+                pad_display_width(&t!("labels.pe_ttm"), LABEL_WIDTH).dimmed(),
+                pe
+            );
         }
         if let Some(pe) = self.pe_static {
-            println!("  {:<18} {:.2}", "PE (Static):".dimmed(), pe);
+            println!(
+                "  {} {:.2}",
+                pad_display_width(&t!("labels.pe_static"), LABEL_WIDTH).dimmed(),
+                pe
+            );
         }
         if let Some(pb) = self.pb {
-            println!("  {:<18} {:.2}", "PB:".dimmed(), pb);
+            println!(
+                "  {} {:.2}",
+                pad_display_width(&t!("labels.pb"), LABEL_WIDTH).dimmed(),
+                pb
+            );
         }
         if let Some(ps) = self.ps {
-            println!("  {:<18} {:.2}", "PS:".dimmed(), ps);
+            println!(
+                "  {} {:.2}",
+                pad_display_width(&t!("labels.ps"), LABEL_WIDTH).dimmed(),
+                ps
+            );
         }
         println!("{}", "─".repeat(55));
         if let Some(eps) = self.eps {
-            println!("  {:<18} {:.4}", "EPS:".dimmed(), eps);
+            println!(
+                "  {} {:.4}",
+                pad_display_width(&t!("labels.eps"), LABEL_WIDTH).dimmed(),
+                eps
+            );
         }
         if let Some(bps) = self.bps {
-            println!("  {:<18} {:.2}", "BPS:".dimmed(), bps);
+            println!(
+                "  {} {:.2}",
+                pad_display_width(&t!("labels.bps"), LABEL_WIDTH).dimmed(),
+                bps
+            );
         }
         if let Some(roe) = self.roe {
-            println!("  {:<18} {:.2}%", "ROE:".dimmed(), roe);
+            println!(
+                "  {} {:.2}%",
+                pad_display_width(&t!("labels.roe"), LABEL_WIDTH).dimmed(),
+                roe
+            );
         }
         if let Some(gm) = self.gross_margin {
-            println!("  {:<18} {:.2}%", "Gross Margin:".dimmed(), gm);
+            println!(
+                "  {} {:.2}%",
+                pad_display_width(&t!("labels.gross_margin"), LABEL_WIDTH).dimmed(),
+                gm
+            );
         }
         if let Some(nm) = self.net_margin {
-            println!("  {:<18} {:.2}%", "Net Margin:".dimmed(), nm);
+            println!(
+                "  {} {:.2}%",
+                pad_display_width(&t!("labels.net_margin"), LABEL_WIDTH).dimmed(),
+                nm
+            );
         }
         println!("{}", "─".repeat(55));
         if let Some(rev) = self.revenue {
-            println!("  {:<18} {}", "Revenue:".dimmed(), format_amount(rev));
+            println!(
+                "  {} {}",
+                pad_display_width(&t!("labels.revenue"), LABEL_WIDTH).dimmed(),
+                format_amount(rev)
+            );
         }
         if let Some(profit) = self.net_profit {
-            println!("  {:<18} {}", "Net Profit:".dimmed(), format_amount(profit));
+            println!(
+                "  {} {}",
+                pad_display_width(&t!("labels.net_profit"), LABEL_WIDTH).dimmed(),
+                format_amount(profit)
+            );
         }
         if let Some(yoy) = self.revenue_yoy {
-            println!("  {:<18} {:.2}%", "Revenue YoY:".dimmed(), yoy);
+            println!(
+                "  {} {:.2}%",
+                pad_display_width(&t!("labels.revenue_yoy"), LABEL_WIDTH).dimmed(),
+                yoy
+            );
         }
         if let Some(yoy) = self.profit_yoy {
-            println!("  {:<18} {:.2}%", "Profit YoY:".dimmed(), yoy);
+            println!(
+                "  {} {:.2}%",
+                pad_display_width(&t!("labels.profit_yoy"), LABEL_WIDTH).dimmed(),
+                yoy
+            );
         }
     }
 }
@@ -352,12 +432,12 @@ impl SingleDisplay for StockValuation {
 impl TableRow for TopHolder {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Rank").set_alignment(CellAlignment::Right),
-            Cell::new("Holder"),
-            Cell::new("Quantity").set_alignment(CellAlignment::Right),
-            Cell::new("Ratio%").set_alignment(CellAlignment::Right),
-            Cell::new("Change").set_alignment(CellAlignment::Right),
-            Cell::new("Type"),
+            Cell::new(t!("headers.rank")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.holder")),
+            Cell::new(t!("headers.quantity")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.ratio")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.type")),
         ]
     }
 
@@ -388,12 +468,12 @@ impl TableRow for TopHolder {
 impl TableRow for FundHolding {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Stock"),
-            Cell::new("Date"),
-            Cell::new("FundName"),
-            Cell::new("Shares").set_alignment(CellAlignment::Right),
-            Cell::new("Ratio%").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.stock")),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.fund_name")),
+            Cell::new(t!("headers.shares")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.ratio")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -412,12 +492,12 @@ impl TableRow for FundHolding {
 impl TableRow for DividendData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("ReportDate"),
-            Cell::new("ExDate"),
-            Cell::new("Dividend").set_alignment(CellAlignment::Right),
-            Cell::new("Bonus").set_alignment(CellAlignment::Right),
-            Cell::new("Transfer").set_alignment(CellAlignment::Right),
-            Cell::new("Yield%").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.report_date")),
+            Cell::new(t!("headers.ex_date")),
+            Cell::new(t!("headers.dividend")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.bonus")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.transfer")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.yield_pct")).set_alignment(CellAlignment::Right),
         ]
     }
 

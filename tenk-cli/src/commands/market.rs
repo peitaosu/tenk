@@ -2,11 +2,11 @@
 
 use anyhow::Result;
 use comfy_table::{Cell, CellAlignment};
+use rust_i18n::t;
 use tenk::sources::EastMoneySource;
 use tenk::traits::{
-    BillboardSource, BlockTradeSource, CapitalFlowSource, EarningsForecastSource,
-    IPOSource, InstitutionalResearchSource, MarginTradingSource, ResearchReportSource,
-    StockConnectSource,
+    BillboardSource, BlockTradeSource, CapitalFlowSource, EarningsForecastSource, IPOSource,
+    InstitutionalResearchSource, MarginTradingSource, ResearchReportSource, StockConnectSource,
 };
 use tenk::{
     BillboardDetail, BillboardItem, BlockTradeData, CapitalFlowData, CapitalFlowHistory,
@@ -41,8 +41,14 @@ pub async fn handle(action: MarketAction, config: &OutputConfig) -> Result<()> {
             let data = source.get_billboard_detail(&symbol, &date).await?;
             print_output(&data, config);
         }
-        MarketAction::Forecast { period, page, limit } => {
-            let data = source.get_earnings_forecast(period.as_deref(), page, limit).await?;
+        MarketAction::Forecast {
+            period,
+            page,
+            limit,
+        } => {
+            let data = source
+                .get_earnings_forecast(period.as_deref(), page, limit)
+                .await?;
             print_output(&data, config);
         }
         MarketAction::Connect { limit } => {
@@ -66,7 +72,9 @@ pub async fn handle(action: MarketAction, config: &OutputConfig) -> Result<()> {
             print_output(&data, config);
         }
         MarketAction::Report { symbol, limit } => {
-            let data = source.get_research_reports(symbol.as_deref(), limit).await?;
+            let data = source
+                .get_research_reports(symbol.as_deref(), limit)
+                .await?;
             print_output(&data, config);
         }
     }
@@ -76,12 +84,12 @@ pub async fn handle(action: MarketAction, config: &OutputConfig) -> Result<()> {
 impl TableRow for CapitalFlowData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("MainNet").set_alignment(CellAlignment::Right),
-            Cell::new("MainIn").set_alignment(CellAlignment::Right),
-            Cell::new("MainOut").set_alignment(CellAlignment::Right),
-            Cell::new("Ratio%").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.main_net")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.main_in")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.main_out")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.ratio")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -100,12 +108,12 @@ impl TableRow for CapitalFlowData {
 impl TableRow for CapitalFlowHistory {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Date"),
-            Cell::new("MainNet").set_alignment(CellAlignment::Right),
-            Cell::new("SuperLarge").set_alignment(CellAlignment::Right),
-            Cell::new("Large").set_alignment(CellAlignment::Right),
-            Cell::new("Close").set_alignment(CellAlignment::Right),
-            Cell::new("Change%").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.main_net")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.super_large")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.large")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.close")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_pct")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -124,12 +132,12 @@ impl TableRow for CapitalFlowHistory {
 impl TableRow for BillboardItem {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Date"),
-            Cell::new("NetBuy").set_alignment(CellAlignment::Right),
-            Cell::new("Buy").set_alignment(CellAlignment::Right),
-            Cell::new("Sell").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.net_buy")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.buy")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.sell")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -148,13 +156,13 @@ impl TableRow for BillboardItem {
 impl TableRow for BillboardDetail {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Date"),
-            Cell::new("Trader"),
-            Cell::new("Buy").set_alignment(CellAlignment::Right),
-            Cell::new("Sell").set_alignment(CellAlignment::Right),
-            Cell::new("Net").set_alignment(CellAlignment::Right),
-            Cell::new("Dir"),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.trader")),
+            Cell::new(t!("headers.buy")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.sell")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.net")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.dir")),
         ]
     }
 
@@ -174,13 +182,13 @@ impl TableRow for BillboardDetail {
 impl TableRow for EarningsForecast {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Type"),
-            Cell::new("ChangeMin%").set_alignment(CellAlignment::Right),
-            Cell::new("ChangeMax%").set_alignment(CellAlignment::Right),
-            Cell::new("Period"),
-            Cell::new("Announce"),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.type")),
+            Cell::new(t!("headers.change_min")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.change_max")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.period")),
+            Cell::new(t!("headers.announce")),
         ]
     }
 
@@ -189,8 +197,16 @@ impl TableRow for EarningsForecast {
             Cell::new(&self.stock_code),
             Cell::new(&self.stock_name),
             Cell::new(&self.forecast_type),
-            right_cell(self.change_min.map(|v| format!("{:.1}%", v)).unwrap_or_default()),
-            right_cell(self.change_max.map(|v| format!("{:.1}%", v)).unwrap_or_default()),
+            right_cell(
+                self.change_min
+                    .map(|v| format!("{:.1}%", v))
+                    .unwrap_or_default(),
+            ),
+            right_cell(
+                self.change_max
+                    .map(|v| format!("{:.1}%", v))
+                    .unwrap_or_default(),
+            ),
             Cell::new(&self.report_period),
             Cell::new(self.announce_date.to_string()),
         ]
@@ -200,12 +216,12 @@ impl TableRow for EarningsForecast {
 impl TableRow for StockConnectData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Date"),
-            Cell::new("NorthNet").set_alignment(CellAlignment::Right),
-            Cell::new("SHNet").set_alignment(CellAlignment::Right),
-            Cell::new("SZNet").set_alignment(CellAlignment::Right),
-            Cell::new("NorthBuy").set_alignment(CellAlignment::Right),
-            Cell::new("NorthSell").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.north_net")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.sh_net")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.sz_net")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.north_buy")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.north_sell")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -224,12 +240,12 @@ impl TableRow for StockConnectData {
 impl TableRow for MarginTradingData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Date"),
-            Cell::new("MarginBal").set_alignment(CellAlignment::Right),
-            Cell::new("ShortBal").set_alignment(CellAlignment::Right),
-            Cell::new("Total").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.margin_bal")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.short_bal")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.total")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -248,14 +264,14 @@ impl TableRow for MarginTradingData {
 impl TableRow for IPOData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Price").set_alignment(CellAlignment::Right),
-            Cell::new("SubDate"),
-            Cell::new("ListDate"),
-            Cell::new("IssueQty").set_alignment(CellAlignment::Right),
-            Cell::new("WinRate%").set_alignment(CellAlignment::Right),
-            Cell::new("PE").set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.sub_date")),
+            Cell::new(t!("headers.list_date")),
+            Cell::new(t!("headers.issue_qty")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.win_rate")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.pe")).set_alignment(CellAlignment::Right),
         ]
     }
 
@@ -266,9 +282,21 @@ impl TableRow for IPOData {
             right_cell(format!("{:.2}", self.issue_price)),
             Cell::new(self.sub_date.to_string()),
             Cell::new(self.list_date.map(|d| d.to_string()).unwrap_or_default()),
-            right_cell(self.issue_quantity.map(|v| format_amount(v as f64)).unwrap_or_default()),
-            right_cell(self.winning_rate.map(|v| format!("{:.4}%", v)).unwrap_or_default()),
-            right_cell(self.pe_ratio.map(|v| format!("{:.2}", v)).unwrap_or_default()),
+            right_cell(
+                self.issue_quantity
+                    .map(|v| format_amount(v as f64))
+                    .unwrap_or_default(),
+            ),
+            right_cell(
+                self.winning_rate
+                    .map(|v| format!("{:.4}%", v))
+                    .unwrap_or_default(),
+            ),
+            right_cell(
+                self.pe_ratio
+                    .map(|v| format!("{:.2}", v))
+                    .unwrap_or_default(),
+            ),
         ]
     }
 }
@@ -276,14 +304,14 @@ impl TableRow for IPOData {
 impl TableRow for BlockTradeData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Date"),
-            Cell::new("Price").set_alignment(CellAlignment::Right),
-            Cell::new("Premium%").set_alignment(CellAlignment::Right),
-            Cell::new("Amount").set_alignment(CellAlignment::Right),
-            Cell::new("Buyer"),
-            Cell::new("Seller"),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.price")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.premium")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.amount")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.buyer")),
+            Cell::new(t!("headers.seller")),
         ]
     }
 
@@ -304,12 +332,12 @@ impl TableRow for BlockTradeData {
 impl TableRow for InstitutionalResearchData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Date"),
-            Cell::new("Count").set_alignment(CellAlignment::Right),
-            Cell::new("Institutions"),
-            Cell::new("Type"),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.date")),
+            Cell::new(t!("headers.count")).set_alignment(CellAlignment::Right),
+            Cell::new(t!("headers.institutions")),
+            Cell::new(t!("headers.type")),
         ]
     }
 
@@ -328,12 +356,12 @@ impl TableRow for InstitutionalResearchData {
 impl TableRow for ResearchReportData {
     fn headers() -> Vec<Cell> {
         vec![
-            Cell::new("Code"),
-            Cell::new("Name"),
-            Cell::new("Title"),
-            Cell::new("Institution"),
-            Cell::new("Rating"),
-            Cell::new("Date"),
+            Cell::new(t!("headers.code")),
+            Cell::new(t!("headers.name")),
+            Cell::new(t!("headers.title")),
+            Cell::new(t!("headers.institution")),
+            Cell::new(t!("headers.rating")),
+            Cell::new(t!("headers.date")),
         ]
     }
 

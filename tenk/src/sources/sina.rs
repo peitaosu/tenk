@@ -646,7 +646,10 @@ impl FundMarketSource for SinaSource {
 #[async_trait]
 impl BondInfoSource for SinaSource {
     /// Fetches all available convertible bond codes.
-    async fn get_all_bond_codes(&self, _limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>> {
+    async fn get_all_bond_codes(
+        &self,
+        _limit: Option<usize>,
+    ) -> DataResult<Vec<ConvertibleBondCode>> {
         Err(DataError::not_supported("sina: get_all_bond_codes"))
     }
 }

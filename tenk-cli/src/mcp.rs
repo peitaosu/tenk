@@ -10,9 +10,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tenk::sources::{EastMoneySource, SinaSource, THSSource};
 use tenk::traits::{
-    BillboardSource, BlockTradeSource, CapitalFlowSource, EarningsForecastSource,
-    InstitutionalResearchSource, IPOSource, MarginTradingSource, ResearchReportSource,
-    StockConnectSource,
+    BillboardSource, BlockTradeSource, CapitalFlowSource, EarningsForecastSource, IPOSource,
+    InstitutionalResearchSource, MarginTradingSource, ResearchReportSource, StockConnectSource,
 };
 use tenk::{DataClient, KLineType, NewsCategory};
 
@@ -1137,7 +1136,11 @@ impl TenkMCPServer {
         let source = EastMoneySource::default();
 
         let data = source
-            .get_earnings_forecast(params.0.report_period.as_deref(), params.0.page, params.0.limit)
+            .get_earnings_forecast(
+                params.0.report_period.as_deref(),
+                params.0.page,
+                params.0.limit,
+            )
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 

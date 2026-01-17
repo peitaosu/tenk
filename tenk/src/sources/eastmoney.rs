@@ -8,10 +8,10 @@ use tracing::{debug, warn};
 use crate::data::{
     BillboardDetail, BillboardItem, BlockTradeData, BondCurrentData, CapitalFlowData,
     CapitalFlowHistory, ConvertibleBondCode, CurrentMarketData, DividendData, ETFCode,
-    ETFCurrentData, ETFMarketData, ETFMinuteData, EarningsForecast, Exchange, FundHolding,
-    IPOData, InstitutionalResearchData, KLineType, MarginTradingData, MarketData, MinuteData,
-    NewsArticle, NewsCategory, NewsContent, ResearchReportData, StockCode, StockConnectData,
-    StockInfo, StockValuation, TopHolder,
+    ETFCurrentData, ETFMarketData, ETFMinuteData, EarningsForecast, Exchange, FundHolding, IPOData,
+    InstitutionalResearchData, KLineType, MarginTradingData, MarketData, MinuteData, NewsArticle,
+    NewsCategory, NewsContent, ResearchReportData, StockCode, StockConnectData, StockInfo,
+    StockValuation, TopHolder,
 };
 use crate::error::DataResult;
 use crate::request::RequestManager;
@@ -1006,7 +1006,10 @@ struct BondQuoteItem {
 #[async_trait]
 impl BondInfoSource for EastMoneySource {
     /// Fetches all available convertible bond codes.
-    async fn get_all_bond_codes(&self, limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>> {
+    async fn get_all_bond_codes(
+        &self,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<ConvertibleBondCode>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
         let mut all_bonds = Vec::new();
         let page_size = 50;
@@ -1684,7 +1687,10 @@ impl CapitalFlowSource for EastMoneySource {
         let params = [
             ("secid", secid.as_str()),
             ("fields1", "f1,f2,f3,f7"),
-            ("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65"),
+            (
+                "fields2",
+                "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65",
+            ),
             ("lmt", &lmt),
             ("klt", "101"),
             ("ut", "b2884a393a59ad64002292a3e90d46a5"),
@@ -1735,19 +1741,13 @@ impl CapitalFlowSource for EastMoneySource {
 #[async_trait]
 impl BillboardSource for EastMoneySource {
     /// Fetches Billboard list for a given date.
-    async fn get_billboard_list(
-        &self,
-        _date: Option<&str>,
-    ) -> DataResult<Vec<BillboardItem>> {
+    async fn get_billboard_list(&self, _date: Option<&str>) -> DataResult<Vec<BillboardItem>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
-        
+
         let filter = "(STATISTICSCYCLE='02')";
         let params = [
             ("reportName", "RPT_RATEDEPT_RETURNT_RANKING"),
-            (
-                "columns",
-                "ALL",
-            ),
+            ("columns", "ALL"),
             ("filter", filter),
             ("pageNumber", "1"),
             ("pageSize", "500"),
@@ -1823,10 +1823,7 @@ impl BillboardSource for EastMoneySource {
         date: &str,
     ) -> DataResult<Vec<BillboardDetail>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
-        let filter = format!(
-            "(TRADE_DATE='{}')(SECURITY_CODE=\"{}\")",
-            date, stock_code
-        );
+        let filter = format!("(TRADE_DATE='{}')(SECURITY_CODE=\"{}\")", date, stock_code);
 
         let buy_params = [
             ("reportName", "RPT_BILLBOARD_DAILYDETAILSBUY"),
@@ -1852,7 +1849,10 @@ impl BillboardSource for EastMoneySource {
             ("client", "WEB"),
         ];
 
-        debug!("Fetching Dragon Tiger Detail for {} on {}", stock_code, date);
+        debug!(
+            "Fetching Dragon Tiger Detail for {} on {}",
+            stock_code, date
+        );
 
         #[derive(Deserialize)]
         struct DetailResponse {
@@ -1882,10 +1882,8 @@ impl BillboardSource for EastMoneySource {
 
         let mut results = Vec::new();
 
-        let buy_response: DetailResponse = self
-            .request
-            .get_json_with_params(url, &buy_params)
-            .await?;
+        let buy_response: DetailResponse =
+            self.request.get_json_with_params(url, &buy_params).await?;
         if let Some(items) = buy_response.result.and_then(|r| r.data) {
             for item in items {
                 let date = NaiveDate::parse_from_str(&item.trade_date[..10], "%Y-%m-%d")
@@ -1902,10 +1900,8 @@ impl BillboardSource for EastMoneySource {
             }
         }
 
-        let sell_response: DetailResponse = self
-            .request
-            .get_json_with_params(url, &sell_params)
-            .await?;
+        let sell_response: DetailResponse =
+            self.request.get_json_with_params(url, &sell_params).await?;
         if let Some(items) = sell_response.result.and_then(|r| r.data) {
             for item in items {
                 let date = NaiveDate::parse_from_str(&item.trade_date[..10], "%Y-%m-%d")
@@ -2099,7 +2095,10 @@ impl MarginTradingSource for EastMoneySource {
 
         let params = [
             ("reportName", "RPTA_WEB_RZRQ_GGMX"),
-            ("columns", "DATE,SCODE,SECNAME,RZYE,RZMRE,RZCHE,RQYE,RQYL,RZRQYE"),
+            (
+                "columns",
+                "DATE,SCODE,SECNAME,RZYE,RZMRE,RZCHE,RQYE,RQYL,RZRQYE",
+            ),
             ("filter", &format!("(SCODE=\"{}\")", stock_code)),
             ("pageNumber", "1"),
             ("pageSize", &limit.unwrap_or(30).to_string()),
@@ -2306,7 +2305,12 @@ impl BlockTradeSource for EastMoneySource {
             .map(|item| {
                 let trade_date = NaiveDate::parse_from_str(&item.trade_date[..10], "%Y-%m-%d")
                     .unwrap_or_else(|_| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
-                let stock_code = item.secucode.split('.').next().unwrap_or(&item.secucode).to_string();
+                let stock_code = item
+                    .secucode
+                    .split('.')
+                    .next()
+                    .unwrap_or(&item.secucode)
+                    .to_string();
                 BlockTradeData {
                     stock_code,
                     stock_name: item.name,
@@ -2546,11 +2550,22 @@ impl ValuationSource for EastMoneySource {
 impl HoldingsSource for EastMoneySource {
     async fn get_top_holders(&self, stock_code: &str) -> DataResult<Vec<TopHolder>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
-        let secucode = format!("{}.{}", stock_code, if stock_code.starts_with('6') { "SH" } else { "SZ" });
+        let secucode = format!(
+            "{}.{}",
+            stock_code,
+            if stock_code.starts_with('6') {
+                "SH"
+            } else {
+                "SZ"
+            }
+        );
         let filter = format!("(SECUCODE=\"{}\")", secucode);
         let params = [
             ("reportName", "RPT_DMSK_HOLDERS"),
-            ("columns", "SECUCODE,END_DATE,HOLDER_NAME,HOLD_NUM,HOLD_RATIO"),
+            (
+                "columns",
+                "SECUCODE,END_DATE,HOLDER_NAME,HOLD_NUM,HOLD_RATIO",
+            ),
             ("filter", &filter),
             ("pageNumber", "1"),
             ("pageSize", "10"),
@@ -2583,10 +2598,7 @@ impl HoldingsSource for EastMoneySource {
         }
 
         let response: HolderResponse = self.request.get_json_with_params(url, &params).await?;
-        let items = response
-            .result
-            .and_then(|r| r.data)
-            .unwrap_or_default();
+        let items = response.result.and_then(|r| r.data).unwrap_or_default();
 
         Ok(items
             .into_iter()
@@ -2620,13 +2632,14 @@ impl HoldingsSource for EastMoneySource {
         let secucode = format!(
             "{}.{}",
             stock_code,
-            if stock_code.starts_with('6') { "SH" } else { "SZ" }
+            if stock_code.starts_with('6') {
+                "SH"
+            } else {
+                "SZ"
+            }
         );
         let page_size = limit.unwrap_or(20).to_string();
-        let filter = format!(
-            "(SECUCODE=\"{}\")(HOLDER_TYPE=\"证券投资基金\")",
-            secucode
-        );
+        let filter = format!("(SECUCODE=\"{}\")(HOLDER_TYPE=\"证券投资基金\")", secucode);
         let params = [
             ("reportName", "RPT_F10_EH_FREEHOLDERS"),
             (
@@ -2694,10 +2707,21 @@ impl HoldingsSource for EastMoneySource {
 impl DividendSource for EastMoneySource {
     async fn get_dividends(&self, stock_code: &str) -> DataResult<Vec<DividendData>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
-        let secucode = format!("{}.{}", stock_code, if stock_code.starts_with('6') { "SH" } else { "SZ" });
+        let secucode = format!(
+            "{}.{}",
+            stock_code,
+            if stock_code.starts_with('6') {
+                "SH"
+            } else {
+                "SZ"
+            }
+        );
         let params = [
             ("reportName", "RPT_SHAREBONUS_DET"),
-            ("columns", "SECUCODE,SECURITY_NAME_ABBR,REPORT_DATE,EX_DIVIDEND_DATE,EQUITY_RECORD_DATE,PRETAX_BONUS_RMB,BONUS_RATIO,IT_RATIO"),
+            (
+                "columns",
+                "SECUCODE,SECURITY_NAME_ABBR,REPORT_DATE,EX_DIVIDEND_DATE,EQUITY_RECORD_DATE,PRETAX_BONUS_RMB,BONUS_RATIO,IT_RATIO",
+            ),
             ("filter", &format!("(SECUCODE=\"{}\")", secucode)),
             ("pageNumber", "1"),
             ("pageSize", "50"),
@@ -2736,10 +2760,7 @@ impl DividendSource for EastMoneySource {
         }
 
         let response: DivResponse = self.request.get_json_with_params(url, &params).await?;
-        let items = response
-            .result
-            .and_then(|r| r.data)
-            .unwrap_or_default();
+        let items = response.result.and_then(|r| r.data).unwrap_or_default();
 
         Ok(items
             .into_iter()

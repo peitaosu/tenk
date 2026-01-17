@@ -228,7 +228,10 @@ impl DataSource for THSSource {
 #[async_trait]
 impl BondInfoSource for THSSource {
     /// Fetches all available convertible bond codes.
-    async fn get_all_bond_codes(&self, limit: Option<usize>) -> DataResult<Vec<ConvertibleBondCode>> {
+    async fn get_all_bond_codes(
+        &self,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<ConvertibleBondCode>> {
         let url = "https://data.10jqka.com.cn/ipo/kzz/";
         debug!("Fetching bond codes from THS");
 
