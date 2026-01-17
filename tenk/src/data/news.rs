@@ -90,7 +90,7 @@ pub struct NewsArticle {
     pub comment_count: u32,
     /// Whether the news has an image
     pub has_image: bool,
-    /// Image URL (if available)
+    /// Image URL
     pub image_url: Option<String>,
 }
 

@@ -3,9 +3,12 @@
 use async_trait::async_trait;
 
 use crate::data::{
-    BondCurrentData, ConvertibleBondCode, CurrentMarketData, ETFCode, ETFCurrentData,
-    ETFMarketData, ETFMinuteData, KLineType, MarketData, MinuteData, NewsArticle, NewsCategory,
-    NewsContent, OrderBookData, StockCode, StockInfo, TickData,
+    BillboardDetail, BillboardItem, BlockTradeData, BondCurrentData, CapitalFlowData,
+    CapitalFlowHistory, ConvertibleBondCode, CurrentMarketData, DividendData, ETFCode,
+    ETFCurrentData, ETFMarketData, ETFMinuteData, EarningsForecast, FundHolding, IPOData,
+    InstitutionalResearchData, KLineType, MarginTradingData, MarketData, MinuteData, NewsArticle,
+    NewsCategory, NewsContent, OrderBookData, ResearchReportData, StockCode, StockConnectData,
+    StockInfo, StockValuation, TickData, TopHolder,
 };
 use crate::error::DataResult;
 
@@ -164,6 +167,130 @@ pub trait NewsSource: DataSource {
         let _ = (keyword, page, limit);
         Err(crate::error::DataError::not_supported("search_news"))
     }
+}
+
+/// Capital flow data source.
+#[async_trait]
+pub trait CapitalFlowSource: DataSource {
+    /// Get real-time capital flow for stocks.
+    async fn get_capital_flow(&self, stock_codes: &[&str]) -> DataResult<Vec<CapitalFlowData>>;
+
+    /// Get historical capital flow for a stock.
+    async fn get_capital_flow_history(
+        &self,
+        stock_code: &str,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<CapitalFlowHistory>>;
+}
+
+/// Billboard data source.
+#[async_trait]
+pub trait BillboardSource: DataSource {
+    /// Get Billboard list by date.
+    async fn get_billboard_list(
+        &self,
+        date: Option<&str>,
+    ) -> DataResult<Vec<BillboardItem>>;
+
+    /// Get Billboard details for a stock.
+    async fn get_billboard_detail(
+        &self,
+        stock_code: &str,
+        date: &str,
+    ) -> DataResult<Vec<BillboardDetail>>;
+}
+
+/// Earnings forecast data source.
+#[async_trait]
+pub trait EarningsForecastSource: DataSource {
+    /// Get earnings forecasts.
+    async fn get_earnings_forecast(
+        &self,
+        report_period: Option<&str>,
+        page: u32,
+        limit: u32,
+    ) -> DataResult<Vec<EarningsForecast>>;
+}
+
+/// Stock Connect data source.
+#[async_trait]
+pub trait StockConnectSource: DataSource {
+    /// Get Stock Connect daily flow data.
+    async fn get_stock_connect(&self, limit: Option<usize>) -> DataResult<Vec<StockConnectData>>;
+}
+
+/// Margin trading data source.
+#[async_trait]
+pub trait MarginTradingSource: DataSource {
+    /// Get margin trading data for a stock.
+    async fn get_margin_trading(
+        &self,
+        stock_code: &str,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<MarginTradingData>>;
+}
+
+/// IPO data source.
+#[async_trait]
+pub trait IPOSource: DataSource {
+    /// Get IPO list.
+    async fn get_ipo_list(&self, limit: Option<usize>) -> DataResult<Vec<IPOData>>;
+}
+
+/// Block trade data source.
+#[async_trait]
+pub trait BlockTradeSource: DataSource {
+    /// Get block trade list.
+    async fn get_block_trades(&self, limit: Option<usize>) -> DataResult<Vec<BlockTradeData>>;
+}
+
+/// Institutional research data source.
+#[async_trait]
+pub trait InstitutionalResearchSource: DataSource {
+    /// Get institutional research list.
+    async fn get_institutional_research(
+        &self,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<InstitutionalResearchData>>;
+}
+
+/// Research report data source.
+#[async_trait]
+pub trait ResearchReportSource: DataSource {
+    /// Get research reports.
+    async fn get_research_reports(
+        &self,
+        stock_code: Option<&str>,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<ResearchReportData>>;
+}
+
+/// Stock valuation data source.
+#[async_trait]
+pub trait ValuationSource: DataSource {
+    /// Get stock valuation metrics.
+    async fn get_valuation(&self, stock_code: &str) -> DataResult<StockValuation>;
+}
+
+/// Stock holdings data source.
+#[async_trait]
+pub trait HoldingsSource: DataSource {
+    /// Get top 10 shareholders.
+    async fn get_top_holders(&self, stock_code: &str) -> DataResult<Vec<TopHolder>>;
+
+    /// Get fund holdings for a stock.
+    async fn get_fund_holdings(
+        &self,
+        stock_code: &str,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<FundHolding>>;
+}
+
+/// Dividend data source.
+#[async_trait]
+pub trait DividendSource: DataSource {
+    /// Get dividend history.
+    async fn get_dividends(&self, stock_code: &str) -> DataResult<Vec<DividendData>>;
 }
 
 #[cfg(test)]

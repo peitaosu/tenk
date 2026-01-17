@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. Get all stock codes
     println!("1. Fetching all stock codes...");
-    let codes = client.get_all_codes().await?;
+    let codes = client.get_all_codes(None).await?;
     println!("   Found {} stocks", codes.len());
 
     // Show stocks by exchange

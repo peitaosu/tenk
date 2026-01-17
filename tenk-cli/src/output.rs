@@ -14,7 +14,7 @@ use std::io::{self, BufWriter, Write};
 pub enum OutputFormat {
     /// JSON format
     JSON,
-    /// Table format (default)
+    /// Table format
     #[default]
     Table,
     /// CSV format

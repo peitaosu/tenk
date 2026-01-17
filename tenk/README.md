@@ -70,6 +70,22 @@ let orderbook = client.get_order_book("600519").await?;
 
 // Tick data
 let ticks = client.get_ticks("600519").await?;
+
+// Stock valuation metrics
+use tenk::sources::EastMoneySource;
+let source = EastMoneySource::default();
+let valuation = source.get_valuation("600519").await?;
+
+// Top shareholders
+use tenk::traits::HoldingsSource;
+let holders = source.get_top_holders("600519", Some(10)).await?;
+
+// Fund holdings
+let funds = source.get_fund_holdings("600519", Some(10)).await?;
+
+// Dividend history
+use tenk::traits::DividendSource;
+let dividends = source.get_dividends("600519").await?;
 ```
 
 ### ETF Data
@@ -101,6 +117,57 @@ let bonds = client.get_bond_current(None).await?;
 
 // Specific bonds
 let bonds = client.get_bond_current(Some(&["127046", "113050"])).await?;
+```
+
+### Market Data
+
+```rust
+use tenk::traits::*;
+use tenk::sources::EastMoneySource;
+
+let source = EastMoneySource::default();
+
+// Capital flow
+let flow = source.get_capital_flow(&["600519", "300059"]).await?;
+
+// Billboard list
+let billboard = source.get_billboard_list(None).await?;
+
+// Earnings forecast
+let forecast = source.get_earnings_forecast(None, 1, 50).await?;
+
+// Stock Connect data
+let connect = source.get_stock_connect(Some(30)).await?;
+
+// Margin trading
+let margin = source.get_margin_trading("600519", Some(30)).await?;
+
+// IPO list
+let ipo = source.get_ipo_list(Some(10)).await?;
+
+// Block trades
+let blocks = source.get_block_trades(Some(10)).await?;
+
+// Institutional research
+let research = source.get_institutional_research(Some(10)).await?;
+
+// Research reports
+let reports = source.get_research_reports(None, Some(10)).await?;
+```
+
+### News Data
+
+```rust
+use tenk::traits::NewsSource;
+
+// Get latest news
+let news = source.get_news_list(tenk::NewsCategory::Finance, 1, 20).await?;
+
+// Search news
+let results = source.search_news("600519", 1, 10).await?;
+
+// Read full content
+let content = source.get_news_content("202601153620739638").await?;
 ```
 
 ## Data Sources

@@ -9,7 +9,7 @@ mod commands;
 mod mcp;
 mod output;
 
-use commands::{bond, etf, news, stock};
+use commands::{bond, etf, market, news, stock};
 use output::OutputFormat;
 
 /// CLI application entry point.
@@ -57,11 +57,11 @@ pub struct Cli {
 /// Data source provider.
 #[derive(Clone, Copy, ValueEnum, Debug, PartialEq)]
 pub enum Source {
-    /// East Money (东方财富)
+    /// East Money
     Eastmoney,
-    /// Sina Finance (新浪财经)
+    /// Sina Finance
     Sina,
-    /// THS (同花顺)
+    /// THS
     Ths,
 }
 
@@ -131,6 +131,13 @@ enum Commands {
         #[command(subcommand)]
         action: NewsAction,
     },
+
+    /// Market data commands
+    Market {
+        /// Market subcommand action
+        #[command(subcommand)]
+        action: MarketAction,
+    },
 }
 
 /// Stock subcommands.
@@ -168,7 +175,7 @@ pub enum StockAction {
         /// Stock symbol
         symbol: String,
     },
-    /// Get order book (bid/ask levels)
+    /// Get order book
     Orderbook {
         /// Stock symbol
         symbol: String,
@@ -184,6 +191,30 @@ pub enum StockAction {
     },
     /// Get stock info
     Info {
+        /// Stock symbol
+        symbol: String,
+    },
+    /// Get stock valuation metrics
+    Valuation {
+        /// Stock symbol
+        symbol: String,
+    },
+    /// Get top 10 shareholders
+    Holders {
+        /// Stock symbol
+        symbol: String,
+    },
+    /// Get fund holdings
+    Funds {
+        /// Stock symbol
+        symbol: String,
+
+        /// Maximum number of records
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Get dividend history
+    Dividend {
         /// Stock symbol
         symbol: String,
     },
@@ -293,7 +324,7 @@ pub enum NewsAction {
     },
     /// Search news by keyword
     Search {
-        /// Search keyword (stock code or name)
+        /// Search keyword
         keyword: String,
 
         /// Page number
@@ -306,8 +337,100 @@ pub enum NewsAction {
     },
     /// Read full news content by ID
     Read {
-        /// News ID (e.g., 202601153620739638)
+        /// News ID
         id: String,
+    },
+}
+
+/// Market data subcommands.
+#[derive(Subcommand)]
+pub enum MarketAction {
+    /// Get real-time capital flow for stocks
+    Flow {
+        /// Stock symbols
+        #[arg(required = true)]
+        symbols: Vec<String>,
+    },
+    /// Get historical capital flow for a stock
+    FlowHistory {
+        /// Stock symbol
+        symbol: String,
+
+        /// Number of days
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Get Billboard list
+    Billboard {
+        /// Trade date
+        #[arg(short, long)]
+        date: Option<String>,
+    },
+    /// Get Billboard details for a stock
+    BillboardDetail {
+        /// Stock symbol
+        symbol: String,
+
+        /// Trade date
+        #[arg(short, long)]
+        date: String,
+    },
+    /// Get earnings forecast
+    Forecast {
+        /// Report period
+        #[arg(short = 'r', long)]
+        period: Option<String>,
+
+        /// Page number
+        #[arg(short, long, default_value = "1")]
+        page: u32,
+
+        /// Number of records
+        #[arg(short, long, default_value = "50")]
+        limit: u32,
+    },
+    /// Get Stock Connect data
+    Connect {
+        /// Number of days
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Get margin trading data
+    Margin {
+        /// Stock symbol
+        symbol: String,
+
+        /// Number of days
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Get IPO list
+    Ipo {
+        /// Number of records
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Get block trade list
+    Block {
+        /// Number of records
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Get institutional research list
+    Research {
+        /// Number of records
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Get research reports
+    Report {
+        /// Stock symbol
+        #[arg(short = 'c', long)]
+        symbol: Option<String>,
+
+        /// Number of records
+        #[arg(short, long)]
+        limit: Option<usize>,
     },
 }
 
@@ -380,6 +503,7 @@ async fn main() -> Result<()> {
         Commands::ETF { action } => etf::handle(action, &client, &output_config).await?,
         Commands::Bond { action } => bond::handle(action, &client, &output_config).await?,
         Commands::News { action } => news::handle(action, &client, &output_config).await?,
+        Commands::Market { action } => market::handle(action, &output_config).await?,
     }
 
     Ok(())

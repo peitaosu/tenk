@@ -19,7 +19,7 @@ use crate::traits::{
     StockInfoSource, StockMarketSource,
 };
 
-/// THS (同花顺) data source.
+/// THS data source.
 #[derive(Debug, Clone)]
 pub struct THSSource {
     /// HTTP request manager

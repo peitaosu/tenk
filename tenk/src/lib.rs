@@ -9,10 +9,12 @@ pub mod traits;
 
 pub use client::DataClient;
 pub use data::{
-    AdjustType, BondCurrentData, ConvertibleBondCode, CurrentMarketData, ETFCode, ETFCurrentData,
-    ETFMarketData, ETFMinuteData, Exchange, KLineType, MarketData, MinuteData, NewsArticle,
-    NewsCategory, NewsContent, NewsListResult, NewsSearchResult, OrderBookData, StockCode,
-    StockInfo, TickData,
+    AdjustType, BillboardDetail, BillboardItem, BlockTradeData, BondCurrentData, CapitalFlowData,
+    CapitalFlowHistory, ConvertibleBondCode, CurrentMarketData, DividendData, ETFCode,
+    ETFCurrentData, ETFMarketData, ETFMinuteData, EarningsForecast, Exchange, FundHolding,
+    IPOData, InstitutionalResearchData, KLineType, MarginTradingData, MarketData, MinuteData,
+    NewsArticle, NewsCategory, NewsContent, NewsListResult, NewsSearchResult, OrderBookData,
+    ResearchReportData, StockCode, StockConnectData, StockInfo, StockValuation, TickData, TopHolder,
 };
 pub use error::{DataError, DataResult};
 pub use request::{RequestConfig, RequestManager};

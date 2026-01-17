@@ -39,7 +39,7 @@ tenk --mcp
 | `stock_quote` | Get current quotes for stocks |
 | `stock_kline` | Get historical K-line data |
 | `stock_minute` | Get intraday minute data |
-| `stock_orderbook` | Get order book (bid/ask) |
+| `stock_orderbook` | Get order book |
 | `stock_ticks` | Get tick-by-tick trades |
 | `stock_info` | Get stock details |
 | `stock_list` | List all stock codes |
@@ -49,6 +49,19 @@ tenk --mcp
 | `etf_list` | List all ETF codes |
 | `bond_quote` | Get bond quotes (with top gainers/losers/volume filters) |
 | `bond_list` | List convertible bonds |
+| `news_list` | Get latest finance news by category |
+| `news_read` | Read full news content by ID |
+| `capital_flow` | Get real-time capital flow data for stocks |
+| `capital_flow_history` | Get historical capital flow data for a stock |
+| `billboard_list` | Get Billboard list |
+| `billboard_detail` | Get Billboard details for a stock |
+| `earnings_forecast` | Get earnings forecast data |
+| `stock_connect` | Get Stock Connect data |
+| `margin_trading` | Get margin trading data for a stock |
+| `ipo_list` | Get IPO list |
+| `block_trades` | Get block trade list |
+| `institutional_research` | Get institutional research list |
+| `research_reports` | Get research reports |
 
 ## Usage
 
@@ -97,6 +110,18 @@ tenk stock ticks 600519 -l 50
 
 # Get stock information
 tenk stock info 600519
+
+# Get stock valuation metrics (PE, PB, Market Cap, EPS, ROE, etc.)
+tenk stock valuation 600519
+
+# Get top 10 shareholders
+tenk stock holders 600519
+
+# Get fund holdings
+tenk stock funds 600519 -l 10
+
+# Get dividend history
+tenk stock dividend 600519
 
 # List all stocks
 tenk stock list -l 20
@@ -148,6 +173,68 @@ tenk bond quote --top-volume 10
 
 # List all convertible bonds
 tenk bond list -l 20
+```
+
+### Market Commands
+
+```bash
+# Get real-time capital flow for stocks
+tenk market flow 600519 300059
+
+# Get historical capital flow for a stock
+tenk market flow-history 600519 -l 30
+
+# Get Billboard list (defaults to today)
+tenk market billboard
+
+# Get Billboard list for specific date
+tenk market billboard -d 2026-01-16
+
+# Get Billboard details for a stock
+tenk market billboard-detail 600519 -d 2026-01-16
+
+# Get earnings forecast
+tenk market forecast -l 10
+
+# Get earnings forecast for specific period
+tenk market forecast -r 2024-12-31 -l 20
+
+# Get Stock Connect data
+tenk market connect -l 30
+
+# Get margin trading data for a stock
+tenk market margin 600519 -l 30
+
+# Get IPO list
+tenk market ipo -l 10
+
+# Get block trade list
+tenk market block -l 10
+
+# Get institutional research list
+tenk market research -l 10
+
+# Get research reports
+tenk market report -l 10
+
+# Get research reports for a specific stock
+tenk market report -c 600519 -l 10
+```
+
+### News Commands
+
+```bash
+# Get latest finance news
+tenk news list
+
+# Get news by category
+tenk news list -c company -l 20
+
+# Search news by keyword
+tenk news search 600519 -l 10
+
+# Read full news content
+tenk news read 202601153620739638
 ```
 
 ### Output Formats

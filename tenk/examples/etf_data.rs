@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. Get all ETF codes
     println!("1. Fetching all ETF codes...");
-    let etfs = client.get_all_etf_codes().await?;
+    let etfs = client.get_all_etf_codes(None).await?;
     println!("   Found {} ETFs", etfs.len());
 
     // Show top ETFs by NAV

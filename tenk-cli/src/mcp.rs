@@ -9,6 +9,11 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tenk::sources::{EastMoneySource, SinaSource, THSSource};
+use tenk::traits::{
+    BillboardSource, BlockTradeSource, CapitalFlowSource, EarningsForecastSource,
+    InstitutionalResearchSource, IPOSource, MarginTradingSource, ResearchReportSource,
+    StockConnectSource,
+};
 use tenk::{DataClient, KLineType, NewsCategory};
 
 /// MCP server implementation.
@@ -70,14 +75,14 @@ pub struct KlineParams {
     /// Symbol code
     pub symbol: String,
 
-    /// K-line type (daily, weekly, etc.)
+    /// K-line type
     #[serde(default = "default_kline_type")]
     pub kline_type: String,
 
-    /// Start date (YYYY-MM-DD)
+    /// Start date
     pub start: Option<String>,
 
-    /// End date (YYYY-MM-DD)
+    /// End date
     pub end: Option<String>,
 
     /// Maximum number of records
@@ -148,6 +153,101 @@ pub struct NewsListParams {
 pub struct NewsIdParam {
     /// News ID
     pub id: String,
+}
+
+/// Parameters for capital flow.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CapitalFlowParams {
+    /// List of stock symbols
+    pub symbols: Vec<String>,
+}
+
+/// Parameters for capital flow history.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CapitalFlowHistoryParams {
+    /// Stock symbol
+    pub symbol: String,
+    /// Number of days
+    pub limit: Option<usize>,
+}
+
+/// Parameters for Billboard list.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct BillboardParams {
+    /// Trade date
+    pub date: Option<String>,
+}
+
+/// Parameters for Billboard detail.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct BillboardDetailParams {
+    /// Stock symbol
+    pub symbol: String,
+    /// Trade date
+    pub date: String,
+}
+
+/// Parameters for earnings forecast.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct EarningsForecastParams {
+    /// Report period
+    pub report_period: Option<String>,
+    /// Page number
+    #[serde(default = "default_page")]
+    pub page: u32,
+    /// Number of records
+    #[serde(default = "default_forecast_limit")]
+    pub limit: u32,
+}
+
+/// Parameters for Stock Connect.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct StockConnectParams {
+    /// Number of days
+    pub limit: Option<usize>,
+}
+
+/// Parameters for margin trading.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct MarginTradingParams {
+    /// Stock symbol
+    pub symbol: String,
+    /// Number of days
+    pub limit: Option<usize>,
+}
+
+/// Parameters for IPO list.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct IPOListParams {
+    /// Number of records
+    pub limit: Option<usize>,
+}
+
+/// Parameters for block trades.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct BlockTradeParams {
+    /// Number of records
+    pub limit: Option<usize>,
+}
+
+/// Parameters for institutional research.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct InstitutionalResearchParams {
+    /// Number of records
+    pub limit: Option<usize>,
+}
+
+/// Parameters for research reports.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ResearchReportParams {
+    /// Stock code
+    pub symbol: Option<String>,
+    /// Number of records
+    pub limit: Option<usize>,
+}
+
+fn default_forecast_limit() -> u32 {
+    50
 }
 
 fn default_news_category() -> String {
@@ -333,7 +433,7 @@ impl TenkMCPServer {
         Self::ok(Self::to_json(&output)?)
     }
 
-    #[tool(description = "Get order book (bid/ask levels) for a stock")]
+    #[tool(description = "Get order book for a stock")]
     async fn stock_orderbook(
         &self,
         params: Parameters<SymbolParam>,
@@ -854,6 +954,468 @@ impl TenkMCPServer {
             related_stocks: stocks,
             related_sectors: sectors,
         };
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get real-time capital flow data for stocks (main vs retail money flow)")]
+    async fn capital_flow(
+        &self,
+        params: Parameters<CapitalFlowParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+        let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
+
+        let data = source
+            .get_capital_flow(&refs)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct Flow {
+            code: String,
+            name: String,
+            main_net_inflow: f64,
+            main_inflow: f64,
+            main_outflow: f64,
+            super_large_net: f64,
+            large_net: f64,
+            medium_net: f64,
+            small_net: f64,
+            main_net_ratio: f64,
+        }
+
+        let output: Vec<Flow> = data
+            .iter()
+            .map(|d| Flow {
+                code: d.stock_code.clone(),
+                name: d.stock_name.clone(),
+                main_net_inflow: d.main_net_inflow,
+                main_inflow: d.main_inflow,
+                main_outflow: d.main_outflow,
+                super_large_net: d.super_large_net_inflow,
+                large_net: d.large_net_inflow,
+                medium_net: d.medium_net_inflow,
+                small_net: d.small_net_inflow,
+                main_net_ratio: d.main_net_ratio,
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get historical capital flow data for a stock")]
+    async fn capital_flow_history(
+        &self,
+        params: Parameters<CapitalFlowHistoryParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_capital_flow_history(&params.0.symbol, params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct FlowHistory {
+            date: String,
+            main_net: f64,
+            small_net: f64,
+            medium_net: f64,
+            large_net: f64,
+            super_large_net: f64,
+            close: f64,
+            change_pct: f64,
+        }
+
+        let output: Vec<FlowHistory> = data
+            .iter()
+            .map(|d| FlowHistory {
+                date: d.trade_date.to_string(),
+                main_net: d.main_net_inflow,
+                small_net: d.small_net_inflow,
+                medium_net: d.medium_net_inflow,
+                large_net: d.large_net_inflow,
+                super_large_net: d.super_large_net_inflow,
+                close: d.close,
+                change_pct: d.change_pct,
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get Billboard list")]
+    async fn billboard_list(
+        &self,
+        params: Parameters<BillboardParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_billboard_list(params.0.date.as_deref())
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct Billboard {
+            code: String,
+            name: String,
+            date: String,
+            close: f64,
+            change_pct: f64,
+            turnover_ratio: f64,
+            net_buy_amount: f64,
+            buy_amount: f64,
+            sell_amount: f64,
+            reason: String,
+        }
+
+        let output: Vec<Billboard> = data
+            .iter()
+            .map(|d| Billboard {
+                code: d.stock_code.clone(),
+                name: d.stock_name.clone(),
+                date: d.trade_date.to_string(),
+                close: d.close,
+                change_pct: d.change_pct,
+                turnover_ratio: d.turnover_ratio,
+                net_buy_amount: d.net_buy_amount,
+                buy_amount: d.buy_amount,
+                sell_amount: d.sell_amount,
+                reason: d.reason.clone(),
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get Billboard details for a stock")]
+    async fn billboard_detail(
+        &self,
+        params: Parameters<BillboardDetailParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_billboard_detail(&params.0.symbol, &params.0.date)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct Detail {
+            code: String,
+            date: String,
+            trader: String,
+            buy_amount: f64,
+            sell_amount: f64,
+            net_amount: f64,
+            direction: String,
+        }
+
+        let output: Vec<Detail> = data
+            .iter()
+            .map(|d| Detail {
+                code: d.stock_code.clone(),
+                date: d.trade_date.to_string(),
+                trader: d.trader_name.clone(),
+                buy_amount: d.buy_amount,
+                sell_amount: d.sell_amount,
+                net_amount: d.net_amount,
+                direction: d.direction.clone(),
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get earnings forecast data")]
+    async fn earnings_forecast(
+        &self,
+        params: Parameters<EarningsForecastParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_earnings_forecast(params.0.report_period.as_deref(), params.0.page, params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct Forecast {
+            code: String,
+            name: String,
+            forecast_type: String,
+            profit_min: Option<f64>,
+            profit_max: Option<f64>,
+            change_min: Option<f64>,
+            change_max: Option<f64>,
+            report_period: String,
+            announce_date: String,
+            summary: Option<String>,
+        }
+
+        let output: Vec<Forecast> = data
+            .iter()
+            .map(|d| Forecast {
+                code: d.stock_code.clone(),
+                name: d.stock_name.clone(),
+                forecast_type: d.forecast_type.clone(),
+                profit_min: d.profit_min,
+                profit_max: d.profit_max,
+                change_min: d.change_min,
+                change_max: d.change_max,
+                report_period: d.report_period.clone(),
+                announce_date: d.announce_date.to_string(),
+                summary: d.summary.clone(),
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get Stock Connect data")]
+    async fn stock_connect(
+        &self,
+        params: Parameters<StockConnectParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_stock_connect(params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct Connect {
+            date: String,
+            north_net_buy: f64,
+            sh_net_buy: f64,
+            sz_net_buy: f64,
+            north_buy: f64,
+            north_sell: f64,
+        }
+
+        let output: Vec<Connect> = data
+            .iter()
+            .map(|d| Connect {
+                date: d.trade_date.to_string(),
+                north_net_buy: d.north_net_buy,
+                sh_net_buy: d.sh_net_buy,
+                sz_net_buy: d.sz_net_buy,
+                north_buy: d.north_buy,
+                north_sell: d.north_sell,
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get margin trading data for a stock")]
+    async fn margin_trading(
+        &self,
+        params: Parameters<MarginTradingParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_margin_trading(&params.0.symbol, params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct Margin {
+            code: String,
+            name: String,
+            date: String,
+            margin_balance: f64,
+            margin_buy: f64,
+            margin_repay: f64,
+            short_balance: f64,
+            short_volume: u64,
+            total_balance: f64,
+        }
+
+        let output: Vec<Margin> = data
+            .iter()
+            .map(|d| Margin {
+                code: d.stock_code.clone(),
+                name: d.stock_name.clone(),
+                date: d.trade_date.to_string(),
+                margin_balance: d.margin_balance,
+                margin_buy: d.margin_buy,
+                margin_repay: d.margin_repay,
+                short_balance: d.short_balance,
+                short_volume: d.short_volume,
+                total_balance: d.total_balance,
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get IPO list")]
+    async fn ipo_list(
+        &self,
+        params: Parameters<IPOListParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_ipo_list(params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct IPO {
+            code: String,
+            name: String,
+            issue_price: f64,
+            sub_date: String,
+            list_date: Option<String>,
+            winning_rate: Option<f64>,
+            issue_quantity: Option<u64>,
+            pe_ratio: Option<f64>,
+        }
+
+        let output: Vec<IPO> = data
+            .iter()
+            .map(|d| IPO {
+                code: d.stock_code.clone(),
+                name: d.stock_name.clone(),
+                issue_price: d.issue_price,
+                sub_date: d.sub_date.to_string(),
+                list_date: d.list_date.map(|d| d.to_string()),
+                winning_rate: d.winning_rate,
+                issue_quantity: d.issue_quantity,
+                pe_ratio: d.pe_ratio,
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get block trade list")]
+    async fn block_trades(
+        &self,
+        params: Parameters<BlockTradeParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_block_trades(params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct BlockTrade {
+            code: String,
+            name: String,
+            date: String,
+            price: f64,
+            close_price: f64,
+            premium_rate: f64,
+            volume: u64,
+            amount: f64,
+            buyer: String,
+            seller: String,
+        }
+
+        let output: Vec<BlockTrade> = data
+            .iter()
+            .map(|d| BlockTrade {
+                code: d.stock_code.clone(),
+                name: d.stock_name.clone(),
+                date: d.trade_date.to_string(),
+                price: d.price,
+                close_price: d.close_price,
+                premium_rate: d.premium_rate,
+                volume: d.volume,
+                amount: d.amount,
+                buyer: d.buyer.clone(),
+                seller: d.seller.clone(),
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get institutional research list")]
+    async fn institutional_research(
+        &self,
+        params: Parameters<InstitutionalResearchParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_institutional_research(params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct Research {
+            code: String,
+            name: String,
+            date: String,
+            institution_count: u32,
+            institutions: String,
+            research_type: String,
+            researchers: Option<String>,
+        }
+
+        let output: Vec<Research> = data
+            .iter()
+            .map(|d| Research {
+                code: d.stock_code.clone(),
+                name: d.stock_name.clone(),
+                date: d.research_date.to_string(),
+                institution_count: d.institution_count,
+                institutions: d.institutions.clone(),
+                research_type: d.research_type.clone(),
+                researchers: d.researchers.clone(),
+            })
+            .collect();
+
+        Self::ok(Self::to_json(&output)?)
+    }
+
+    #[tool(description = "Get research reports")]
+    async fn research_reports(
+        &self,
+        params: Parameters<ResearchReportParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let source = EastMoneySource::default();
+
+        let data = source
+            .get_research_reports(params.0.symbol.as_deref(), params.0.limit)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        #[derive(Serialize)]
+        struct Report {
+            id: String,
+            code: String,
+            name: String,
+            title: String,
+            institution: String,
+            analysts: String,
+            rating: Option<String>,
+            date: String,
+        }
+
+        let output: Vec<Report> = data
+            .iter()
+            .map(|d| Report {
+                id: d.report_id.clone(),
+                code: d.stock_code.clone(),
+                name: d.stock_name.clone(),
+                title: d.title.clone(),
+                institution: d.institution.clone(),
+                analysts: d.analysts.clone(),
+                rating: d.rating.clone(),
+                date: d.publish_date.to_string(),
+            })
+            .collect();
 
         Self::ok(Self::to_json(&output)?)
     }

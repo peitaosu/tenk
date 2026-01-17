@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_bond_market_source(SinaSource::default());
 
     // 1. Get stock codes
-    let codes = client.get_all_codes().await?;
+    let codes = client.get_all_codes(None).await?;
     println!("📊 Total stocks: {}", codes.len());
 
     // 2. Get current prices
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📈 K-line records: {}", kline.len());
 
     // 4. Get ETF codes
-    let etfs = client.get_all_etf_codes().await?;
+    let etfs = client.get_all_etf_codes(None).await?;
     println!("🏦 Total ETFs: {}", etfs.len());
 
     // 5. Get bond data

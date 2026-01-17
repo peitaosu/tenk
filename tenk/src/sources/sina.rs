@@ -17,7 +17,7 @@ use crate::traits::{
     StockInfoSource, StockMarketSource,
 };
 
-/// Sina Finance (新浪财经) data source.
+/// Sina Finance data source.
 #[derive(Debug, Clone)]
 pub struct SinaSource {
     /// HTTP request manager
