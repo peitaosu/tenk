@@ -21,7 +21,7 @@ use output::OutputFormat;
 #[derive(Parser)]
 #[command(name = "tenk")]
 #[command(author = "Tony Su <peitaosu@163.com>")]
-#[command(version = "0.1.0")]
+#[command(version = "0.2.0")]
 #[command(about = "CLI for fetching market data from multiple sources", long_about = None)]
 pub struct Cli {
     /// Enable verbose output
