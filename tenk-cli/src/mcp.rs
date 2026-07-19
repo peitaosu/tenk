@@ -2,47 +2,38 @@
 
 use rmcp::{
     ErrorData as McpError, ServerHandler,
-    handler::server::{tool::ToolRouter, wrapper::Parameters},
-    model::*,
+    handler::server::wrapper::Parameters,
+    model::{CallToolResult, ContentBlock},
     tool, tool_handler, tool_router,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tenk::sources::{EastMoneySource, SinaSource, THSSource};
-use tenk::traits::{
-    BillboardSource, BlockTradeSource, CapitalFlowSource, EarningsForecastSource, IPOSource,
-    InstitutionalResearchSource, MarginTradingSource, ResearchReportSource, StockConnectSource,
+
+use std::sync::Arc;
+
+use tenk::{DataClient, KLineType, NewsCategory, RelatedStock, format_related_stocks};
+
+use crate::args::{
+    BoardKindArg, FinancialKindArg, OptionExchangeArg, PoolKindArg, limit_kline,
 };
-use tenk::{DataClient, KLineType, NewsCategory};
 
 /// MCP server implementation.
 #[derive(Clone)]
 pub struct TenkMCPServer {
-    /// Tool router for handling MCP requests
-    tool_router: ToolRouter<Self>,
+    client: Arc<DataClient>,
 }
 
 impl TenkMCPServer {
-    /// Creates a new MCP server instance.
     pub fn new() -> Self {
+        let proxy = std::env::var("TENK_PROXY").ok();
         Self {
-            tool_router: Self::tool_router(),
+            client: Arc::new(
+                crate::client::default_client(proxy.as_deref())
+                    .expect("failed to build MCP client"),
+            ),
         }
     }
 
-    fn build_client() -> DataClient {
-        DataClient::new()
-            .with_source(EastMoneySource::default())
-            .with_fund_source(EastMoneySource::default())
-            .with_bond_source(EastMoneySource::default())
-            .with_news_source(EastMoneySource::default())
-            .with_source(SinaSource::default())
-            .with_fund_source(SinaSource::default())
-            .with_bond_market_source(SinaSource::default())
-            .with_source(THSSource::default())
-            .with_fund_source(THSSource::default())
-            .with_bond_info_source(THSSource::default())
-    }
 
     fn to_json<T: Serialize>(value: &T) -> Result<String, McpError> {
         serde_json::to_string_pretty(value)
@@ -50,7 +41,19 @@ impl TenkMCPServer {
     }
 
     fn ok(text: String) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(text)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    async fn json_result<T>(
+        future: impl std::future::Future<Output = tenk::DataResult<T>>,
+    ) -> Result<CallToolResult, McpError>
+    where
+        T: Serialize,
+    {
+        let data = future
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        Self::ok(Self::to_json(&data)?)
     }
 }
 
@@ -245,6 +248,123 @@ pub struct ResearchReportParams {
     pub limit: Option<usize>,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FundHoldingsParams {
+    pub symbol: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct NewsSearchParams {
+    pub keyword: String,
+    #[serde(default = "default_page")]
+    pub page: u32,
+    #[serde(default = "default_search_limit")]
+    pub limit: u32,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct BoardListParams {
+    #[serde(default = "default_board_kind")]
+    pub kind: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct BoardCodeParams {
+    pub code: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct BoardKlineParams {
+    pub code: String,
+    #[serde(default = "default_kline_type")]
+    pub kline_type: String,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct BoardResolveParams {
+    pub eastmoney_code: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct IndexKlineParams {
+    pub symbol: String,
+    #[serde(default = "default_kline_type")]
+    pub kline_type: String,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FuturesQuoteParams {
+    pub secids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FuturesKlineParams {
+    pub secid: String,
+    #[serde(default = "default_kline_type")]
+    pub kline_type: String,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct OptionsListParams {
+    #[serde(default = "default_option_exchange")]
+    pub exchange: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct OptionCodesParams {
+    pub codes: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FinancialParams {
+    pub symbol: String,
+    #[serde(default = "default_financial_kind")]
+    pub kind: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PoolParams {
+    #[serde(default = "default_pool_kind")]
+    pub kind: String,
+    pub date: Option<String>,
+    pub limit: Option<usize>,
+}
+
+fn default_search_limit() -> u32 {
+    10
+}
+
+fn default_board_kind() -> String {
+    "industry".to_string()
+}
+
+fn default_option_exchange() -> String {
+    "sse".to_string()
+}
+
+fn default_financial_kind() -> String {
+    "income".to_string()
+}
+
+fn default_pool_kind() -> String {
+    "limit-up".to_string()
+}
+
 fn default_forecast_limit() -> u32 {
     50
 }
@@ -261,18 +381,6 @@ fn default_news_limit() -> u32 {
     20
 }
 
-fn parse_news_category(s: &str) -> NewsCategory {
-    match s.to_lowercase().as_str() {
-        "finance" | "102" => NewsCategory::Finance,
-        "company" | "103" => NewsCategory::Company,
-        "stock" | "104" => NewsCategory::Stock,
-        "us" | "usmarket" | "105" => NewsCategory::USMarket,
-        "global" | "111" => NewsCategory::Global,
-        "domestic" | "106" => NewsCategory::Domestic,
-        "industry" | "115" => NewsCategory::Industry,
-        _ => NewsCategory::Finance,
-    }
-}
 
 fn default_kline_type() -> String {
     "daily".to_string()
@@ -282,18 +390,6 @@ fn default_ticks_limit() -> usize {
     50
 }
 
-fn parse_kline_type(s: &str) -> KLineType {
-    match s.to_lowercase().as_str() {
-        "weekly" => KLineType::Weekly,
-        "monthly" => KLineType::Monthly,
-        "quarterly" => KLineType::Quarterly,
-        "min5" => KLineType::Min5,
-        "min15" => KLineType::Min15,
-        "min30" => KLineType::Min30,
-        "min60" => KLineType::Min60,
-        _ => KLineType::Daily,
-    }
-}
 
 #[tool_router]
 impl TenkMCPServer {
@@ -302,9 +398,8 @@ impl TenkMCPServer {
         &self,
         params: Parameters<SymbolsParam>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
         let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
-        let data = client
+        let data = self.client
             .get_market_current(&refs)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -347,10 +442,9 @@ impl TenkMCPServer {
         &self,
         params: Parameters<KlineParams>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let kline_type = parse_kline_type(&params.0.kline_type);
+        let kline_type = KLineType::from_name(&params.0.kline_type);
 
-        let mut data = client
+        let mut data = self.client
             .get_market(
                 &params.0.symbol,
                 params.0.start.as_deref(),
@@ -401,8 +495,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<SymbolParam>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let data = client
+        let data = self.client
             .get_market_min(&params.0.symbol)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -437,8 +530,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<SymbolParam>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let data = client
+        let data = self.client
             .get_order_book(&params.0.symbol)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -490,8 +582,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<TicksParams>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let mut data = client
+        let mut data = self.client
             .get_ticks(&params.0.symbol)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -528,8 +619,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<SymbolParam>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let data = client
+        let data = self.client
             .get_stock_info(&params.0.symbol)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -562,13 +652,12 @@ impl TenkMCPServer {
 
     #[tool(description = "List all available stock codes")]
     async fn stock_list(&self, params: Parameters<ListParams>) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
         let fetch_limit = if params.0.exchange.is_some() {
             None
         } else {
             params.0.limit
         };
-        let mut data = client
+        let mut data = self.client
             .get_all_codes(fetch_limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -605,9 +694,8 @@ impl TenkMCPServer {
         &self,
         params: Parameters<SymbolsParam>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
         let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
-        let data = client
+        let data = self.client
             .get_etf_current(&refs)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -639,10 +727,9 @@ impl TenkMCPServer {
 
     #[tool(description = "Get historical K-line data for an ETF")]
     async fn etf_kline(&self, params: Parameters<KlineParams>) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let kline_type = parse_kline_type(&params.0.kline_type);
+        let kline_type = KLineType::from_name(&params.0.kline_type);
 
-        let mut data = client
+        let mut data = self.client
             .get_etf_market(
                 &params.0.symbol,
                 params.0.start.as_deref(),
@@ -693,8 +780,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<SymbolParam>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let data = client
+        let data = self.client
             .get_etf_min(&params.0.symbol)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -726,13 +812,12 @@ impl TenkMCPServer {
 
     #[tool(description = "List all available ETF codes")]
     async fn etf_list(&self, params: Parameters<ListParams>) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
         let fetch_limit = if params.0.exchange.is_some() {
             None
         } else {
             params.0.limit
         };
-        let mut data = client
+        let mut data = self.client
             .get_all_etf_codes(fetch_limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -773,7 +858,6 @@ impl TenkMCPServer {
         &self,
         params: Parameters<BondQuoteParams>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
 
         let codes: Option<Vec<&str>> = if params.0.symbols.is_empty() {
             None
@@ -781,7 +865,7 @@ impl TenkMCPServer {
             Some(params.0.symbols.iter().map(|s| s.as_str()).collect())
         };
 
-        let mut data = client
+        let mut data = self.client
             .get_bond_current(codes.as_deref())
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -849,8 +933,7 @@ impl TenkMCPServer {
 
     #[tool(description = "List all available convertible bond codes")]
     async fn bond_list(&self, params: Parameters<LimitParam>) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let data = client
+        let data = self.client
             .get_all_bond_codes(params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -883,10 +966,9 @@ impl TenkMCPServer {
         &self,
         params: Parameters<NewsListParams>,
     ) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-        let category = parse_news_category(&params.0.category);
+        let category = NewsCategory::from_name(&params.0.category);
 
-        let data = client
+        let data = self.client
             .get_news(category, params.0.page, params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -920,9 +1002,7 @@ impl TenkMCPServer {
 
     #[tool(description = "Read full news content by ID")]
     async fn news_read(&self, params: Parameters<NewsIdParam>) -> Result<CallToolResult, McpError> {
-        let client = Self::build_client();
-
-        let data = client
+        let data = self.client
             .get_news_content(&params.0.id)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -936,7 +1016,7 @@ impl TenkMCPServer {
             source: String,
             author: Option<String>,
             publish_time: String,
-            related_stocks: Vec<RelatedStockOutput>,
+            related_stocks: Vec<RelatedStock>,
             related_sectors: Vec<String>,
         }
 
@@ -962,10 +1042,9 @@ impl TenkMCPServer {
         &self,
         params: Parameters<CapitalFlowParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
         let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
 
-        let data = source
+        let data = self.client
             .get_capital_flow(&refs)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1008,9 +1087,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<CapitalFlowHistoryParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_capital_flow_history(&params.0.symbol, params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1049,9 +1126,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<BillboardParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_billboard_list(params.0.date.as_deref())
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1094,9 +1169,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<BillboardDetailParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_billboard_detail(&params.0.symbol, &params.0.date)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1133,9 +1206,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<EarningsForecastParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_earnings_forecast(
                 params.0.report_period.as_deref(),
                 params.0.page,
@@ -1182,9 +1253,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<StockConnectParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_stock_connect(params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1219,9 +1288,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<MarginTradingParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_margin_trading(&params.0.symbol, params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1262,9 +1329,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<IPOListParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_ipo_list(params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1303,9 +1368,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<BlockTradeParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_block_trades(params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1348,9 +1411,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<InstitutionalResearchParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_institutional_research(params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1387,9 +1448,7 @@ impl TenkMCPServer {
         &self,
         params: Parameters<ResearchReportParams>,
     ) -> Result<CallToolResult, McpError> {
-        let source = EastMoneySource::default();
-
-        let data = source
+        let data = self.client
             .get_research_reports(params.0.symbol.as_deref(), params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -1422,92 +1481,285 @@ impl TenkMCPServer {
 
         Self::ok(Self::to_json(&output)?)
     }
-}
 
-/// Related stock information output.
-#[derive(Serialize)]
-struct RelatedStockOutput {
-    /// Stock symbol
-    symbol: String,
-    /// Market code (SH/SZ)
-    market: String,
-    /// Formatted symbol with market
-    formatted: String,
-}
+    #[tool(description = "Search finance news by keyword")]
+    async fn news_search(
+        &self,
+        params: Parameters<NewsSearchParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let keyword = params.0.keyword.clone();
+        let page = params.0.page;
+        let limit = params.0.limit;
+        Self::json_result(self.client.search_news(&keyword, page, limit)).await
+    }
 
-/// Format related stock codes into structured format
-fn format_related_stocks(codes: &[String]) -> (Vec<RelatedStockOutput>, Vec<String>) {
-    let mut stocks = Vec::new();
-    let mut sectors = Vec::new();
+    #[tool(description = "Get stock valuation metrics")]
+    async fn stock_valuation(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
+        let symbol = params.0.symbol.clone();
+        Self::json_result(self.client.get_valuation(&symbol)).await
+    }
 
-    for code in codes {
-        if let Some((market, symbol)) = code.split_once('.') {
-            match market {
-                "0" => stocks.push(RelatedStockOutput {
-                    symbol: symbol.to_string(),
-                    market: "SZ".to_string(),
-                    formatted: format!("{}.SZ", symbol),
-                }),
-                "1" => stocks.push(RelatedStockOutput {
-                    symbol: symbol.to_string(),
-                    market: "SH".to_string(),
-                    formatted: format!("{}.SH", symbol),
-                }),
-                "90" => {
-                    sectors.push(symbol.to_string());
-                }
-                "105" => stocks.push(RelatedStockOutput {
-                    symbol: symbol.to_string(),
-                    market: "NASDAQ".to_string(),
-                    formatted: format!("{} (NASDAQ)", symbol),
-                }),
-                "106" => stocks.push(RelatedStockOutput {
-                    symbol: symbol.to_string(),
-                    market: "NYSE".to_string(),
-                    formatted: format!("{} (NYSE)", symbol),
-                }),
-                "116" => stocks.push(RelatedStockOutput {
-                    symbol: symbol.to_string(),
-                    market: "HK".to_string(),
-                    formatted: format!("{}.HK", symbol),
-                }),
-                "118" => stocks.push(RelatedStockOutput {
-                    symbol: symbol.to_string(),
-                    market: "KR".to_string(),
-                    formatted: format!("{} (KR)", symbol),
-                }),
-                _ => stocks.push(RelatedStockOutput {
-                    symbol: symbol.to_string(),
-                    market: market.to_string(),
-                    formatted: code.clone(),
-                }),
+    #[tool(description = "Get top 10 shareholders")]
+    async fn stock_holders(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
+        let symbol = params.0.symbol.clone();
+        Self::json_result(self.client.get_top_holders(&symbol)).await
+    }
+
+    #[tool(description = "Get fund holdings for a stock")]
+    async fn stock_funds(
+        &self,
+        params: Parameters<FundHoldingsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let symbol = params.0.symbol.clone();
+        let limit = params.0.limit;
+        Self::json_result(self.client.get_fund_holdings(&symbol, limit)).await
+    }
+
+    #[tool(description = "Get dividend history")]
+    async fn stock_dividends(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
+        let symbol = params.0.symbol.clone();
+        Self::json_result(self.client.get_dividends(&symbol)).await
+    }
+
+    #[tool(description = "List index codes")]
+    async fn index_list(
+        &self,
+        params: Parameters<LimitParam>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(self.client.get_index_list(params.0.limit)).await
+    }
+
+    #[tool(description = "Get index quotes")]
+    async fn index_quote(
+        &self,
+        params: Parameters<SymbolsParam>,
+    ) -> Result<CallToolResult, McpError> {
+        let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
+        Self::json_result(self.client.get_index_current(&refs)).await
+    }
+
+    #[tool(description = "Get index K-line data")]
+    async fn index_kline(
+        &self,
+        params: Parameters<IndexKlineParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let kline_type = KLineType::from_name(&params.0.kline_type);
+        let symbol = params.0.symbol.clone();
+        let start = params.0.start.clone();
+        let end = params.0.end.clone();
+        let limit = params.0.limit;
+        Self::json_result(async {
+            Ok(limit_kline(
+                self.client
+                    .get_index_market(&symbol, start.as_deref(), end.as_deref(), kline_type)
+                    .await?,
+                limit,
+            ))
+        })
+        .await
+    }
+
+    #[tool(description = "List industry or concept boards")]
+    async fn board_list(
+        &self,
+        params: Parameters<BoardListParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let kind = BoardKindArg::parse(&params.0.kind);
+        let limit = params.0.limit;
+        Self::json_result(async {
+            match kind {
+                BoardKindArg::Industry => self.client.get_industry_boards(limit).await,
+                BoardKindArg::Concept => self.client.get_concept_boards(limit).await,
             }
-        }
+        })
+        .await
     }
 
-    (stocks, sectors)
-}
+    #[tool(description = "Get board K-line data")]
+    async fn board_kline(
+        &self,
+        params: Parameters<BoardKlineParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let kline_type = KLineType::from_name(&params.0.kline_type);
+        let code = params.0.code.clone();
+        let start = params.0.start.clone();
+        let end = params.0.end.clone();
+        let limit = params.0.limit;
+        Self::json_result(async {
+            Ok(limit_kline(
+                self.client
+                    .get_board_market(&code, start.as_deref(), end.as_deref(), kline_type)
+                    .await?,
+                limit,
+            ))
+        })
+        .await
+    }
 
-#[tool_handler]
-impl ServerHandler for TenkMCPServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: Default::default(),
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability { list_changed: None }),
-                ..Default::default()
-            },
-            server_info: Implementation {
-                name: "tenk-mcp".into(),
-                version: env!("CARGO_PKG_VERSION").into(),
-                title: None,
-                icons: None,
-                website_url: None,
-            },
-            ..Default::default()
-        }
+    #[tool(description = "Get board constituent stocks")]
+    async fn board_members(
+        &self,
+        params: Parameters<BoardCodeParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let code = params.0.code.clone();
+        let limit = params.0.limit;
+        Self::json_result(self.client.get_board_constituents(&code, limit))
+            .await
+    }
+
+    #[tool(description = "Map EastMoney and THS board codes by name")]
+    async fn board_crosswalk(
+        &self,
+        params: Parameters<BoardListParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let kind = BoardKindArg::parse(&params.0.kind);
+        let limit = params.0.limit;
+        Self::json_result(self.client.resolve_board_crosswalk(kind.into(), limit))
+            .await
+    }
+
+    #[tool(description = "Resolve THS board code for an EastMoney board via constituent overlap")]
+    async fn board_resolve(
+        &self,
+        params: Parameters<BoardResolveParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let code = params.0.eastmoney_code.clone();
+        let limit = params.0.limit;
+        Self::json_result(self.client.resolve_ths_board_for_eastmoney(&code, limit))
+            .await
+    }
+
+    #[tool(description = "List futures contracts")]
+    async fn futures_list(
+        &self,
+        params: Parameters<LimitParam>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(self.client.get_futures_list(params.0.limit)).await
+    }
+
+    #[tool(description = "Get futures quotes by secid or symbol")]
+    async fn futures_quote(
+        &self,
+        params: Parameters<FuturesQuoteParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let refs: Vec<&str> = params.0.secids.iter().map(|s| s.as_str()).collect();
+        Self::json_result(self.client.get_futures_current(&refs)).await
+    }
+
+    #[tool(description = "Get futures K-line data")]
+    async fn futures_kline(
+        &self,
+        params: Parameters<FuturesKlineParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let kline_type = KLineType::from_name(&params.0.kline_type);
+        let secid = params.0.secid.clone();
+        let start = params.0.start.clone();
+        let end = params.0.end.clone();
+        let limit = params.0.limit;
+        Self::json_result(async {
+            Ok(limit_kline(
+                self.client
+                    .get_futures_market(&secid, start.as_deref(), end.as_deref(), kline_type)
+                    .await?,
+                limit,
+            ))
+        })
+        .await
+    }
+
+    #[tool(description = "List exchange-traded options")]
+    async fn options_list(
+        &self,
+        params: Parameters<OptionsListParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let exchange = OptionExchangeArg::parse(&params.0.exchange);
+        let limit = params.0.limit;
+        Self::json_result(self.client.get_options_list(exchange.into(), limit))
+            .await
+    }
+
+    #[tool(description = "Get option quotes")]
+    async fn options_quote(
+        &self,
+        params: Parameters<OptionCodesParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let refs: Vec<&str> = params.0.codes.iter().map(|s| s.as_str()).collect();
+        Self::json_result(self.client.get_options_current(&refs)).await
+    }
+
+    #[tool(description = "Get financial statements (balance, income, cashflow, performance)")]
+    async fn financial_statement(
+        &self,
+        params: Parameters<FinancialParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let symbol = params.0.symbol.clone();
+        let kind = FinancialKindArg::parse(&params.0.kind);
+        let limit = params.0.limit;
+        Self::json_result(self.client.get_financial_statement(&symbol, kind.into(), limit))
+            .await
+    }
+
+    #[tool(description = "Get CPI macro data")]
+    async fn macro_cpi(
+        &self,
+        params: Parameters<LimitParam>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(self.client.get_macro_cpi(params.0.limit)).await
+    }
+
+    #[tool(description = "Get GDP macro data")]
+    async fn macro_gdp(
+        &self,
+        params: Parameters<LimitParam>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(self.client.get_macro_gdp(params.0.limit)).await
+    }
+
+    #[tool(description = "Get Hong Kong stock quotes")]
+    async fn global_hk(
+        &self,
+        params: Parameters<SymbolsParam>,
+    ) -> Result<CallToolResult, McpError> {
+        let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
+        Self::json_result(self.client.get_hk_current(&refs)).await
+    }
+
+    #[tool(description = "Get US stock quotes")]
+    async fn global_us(
+        &self,
+        params: Parameters<SymbolsParam>,
+    ) -> Result<CallToolResult, McpError> {
+        let refs: Vec<&str> = params.0.symbols.iter().map(|s| s.as_str()).collect();
+        Self::json_result(self.client.get_us_current(&refs)).await
+    }
+
+    #[tool(description = "Get limit-up/limit-down pool stocks")]
+    async fn limit_pool(
+        &self,
+        params: Parameters<PoolParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let kind = PoolKindArg::parse(&params.0.kind);
+        let date = params.0.date.clone();
+        let limit = params.0.limit;
+        Self::json_result(self.client.get_limit_pool(kind.into(), date.as_deref(), limit))
+            .await
     }
 }
+
+#[tool_handler(
+    name = "tenk-mcp",
+    instructions = "Chinese market data: stocks, ETFs, bonds, indices, boards, futures, options, financials, news, and market analytics"
+)]
+impl ServerHandler for TenkMCPServer {}
 
 /// Runs the MCP server.
 pub async fn run_server() -> anyhow::Result<()> {

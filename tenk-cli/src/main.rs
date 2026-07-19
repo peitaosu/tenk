@@ -1,20 +1,20 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use rust_i18n::t;
-use tenk::sources::{EastMoneySource, SinaSource, THSSource};
-use tenk::{DataClient, KLineType};
+use tenk::{DataClient, KLineType, SourceKind};
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-// Initialize i18n with locales directory and fallback language
 rust_i18n::i18n!("locales", fallback = "en");
 
+mod args;
+mod client;
 mod commands;
 mod i18n;
 mod mcp;
 mod output;
 
-use commands::{bond, etf, market, news, stock};
+use commands::{board, bond, etf, financial, futures, global, index, macro_data, market, news, options, pool, stock};
 use output::OutputFormat;
 
 /// CLI application entry point.
@@ -72,6 +72,16 @@ pub enum Source {
     Sina,
     /// THS
     Ths,
+}
+
+impl Source {
+    fn as_kind(self) -> SourceKind {
+        match self {
+            Source::Eastmoney => SourceKind::Eastmoney,
+            Source::Sina => SourceKind::Sina,
+            Source::Ths => SourceKind::Ths,
+        }
+    }
 }
 
 /// K-line type for CLI arguments.
@@ -146,6 +156,54 @@ enum Commands {
         /// Market subcommand action
         #[command(subcommand)]
         action: MarketAction,
+    },
+
+    /// Index commands
+    Index {
+        #[command(subcommand)]
+        action: index::IndexAction,
+    },
+
+    /// Board commands
+    Board {
+        #[command(subcommand)]
+        action: board::BoardAction,
+    },
+
+    /// Futures commands
+    Futures {
+        #[command(subcommand)]
+        action: futures::FuturesAction,
+    },
+
+    /// Options commands
+    Options {
+        #[command(subcommand)]
+        action: options::OptionsAction,
+    },
+
+    /// Financial statement commands
+    Financial {
+        #[command(subcommand)]
+        action: financial::FinancialAction,
+    },
+
+    /// Macro economic data
+    Macro {
+        #[command(subcommand)]
+        action: macro_data::MacroAction,
+    },
+
+    /// Hong Kong / US quotes
+    Global {
+        #[command(subcommand)]
+        action: global::GlobalAction,
+    },
+
+    /// Limit pool commands
+    Pool {
+        #[command(subcommand)]
+        action: pool::PoolAction,
     },
 }
 
@@ -443,34 +501,9 @@ pub enum MarketAction {
     },
 }
 
-fn build_client(sources: &[Source]) -> DataClient {
-    let mut client = DataClient::new();
-
-    for source in sources {
-        match source {
-            Source::Eastmoney => {
-                client = client
-                    .with_source(EastMoneySource::default())
-                    .with_fund_source(EastMoneySource::default())
-                    .with_bond_source(EastMoneySource::default())
-                    .with_news_source(EastMoneySource::default());
-            }
-            Source::Sina => {
-                client = client
-                    .with_source(SinaSource::default())
-                    .with_fund_source(SinaSource::default())
-                    .with_bond_market_source(SinaSource::default());
-            }
-            Source::Ths => {
-                client = client
-                    .with_source(THSSource::default())
-                    .with_fund_source(THSSource::default())
-                    .with_bond_info_source(THSSource::default());
-            }
-        }
-    }
-
-    client
+fn build_client(sources: &[Source], proxy: Option<&str>) -> DataClient {
+    let kinds: Vec<SourceKind> = sources.iter().map(|s| s.as_kind()).collect();
+    client::build_client(&kinds, proxy).expect("failed to build data client")
 }
 
 #[tokio::main]
@@ -502,7 +535,7 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer().with_target(false))
         .init();
 
-    let client = build_client(&cli.source);
+    let client = build_client(&cli.source, cli.proxy.as_deref());
 
     let output_config = output::OutputConfig {
         format: cli.format,
@@ -514,7 +547,15 @@ async fn main() -> Result<()> {
         Commands::ETF { action } => etf::handle(action, &client, &output_config).await?,
         Commands::Bond { action } => bond::handle(action, &client, &output_config).await?,
         Commands::News { action } => news::handle(action, &client, &output_config).await?,
-        Commands::Market { action } => market::handle(action, &output_config).await?,
+        Commands::Market { action } => market::handle(action, &client, &output_config).await?,
+        Commands::Index { action } => index::handle(action, &client, &output_config).await?,
+        Commands::Board { action } => board::handle(action, &client, &output_config).await?,
+        Commands::Futures { action } => futures::handle(action, &client, &output_config).await?,
+        Commands::Options { action } => options::handle(action, &client, &output_config).await?,
+        Commands::Financial { action } => financial::handle(action, &client, &output_config).await?,
+        Commands::Macro { action } => macro_data::handle(action, &client, &output_config).await?,
+        Commands::Global { action } => global::handle(action, &client, &output_config).await?,
+        Commands::Pool { action } => pool::handle(action, &client, &output_config).await?,
     }
 
     Ok(())

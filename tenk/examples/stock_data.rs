@@ -1,7 +1,8 @@
 //! Stock data example.
 
-use tenk::sources::{EastMoneySource, SinaSource, THSSource};
-use tenk::{DataClient, KLineType};
+use tenk::sources::THSSource;
+use tenk::traits::StockMarketSource;
+use tenk::{ClientBuilder, KLineType};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,18 +12,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== tenk Stock Data Example ===\n");
 
-    // Create client with all sources for fallback
-    let client = DataClient::new()
-        .with_source(EastMoneySource::default())
-        .with_source(SinaSource::default())
-        .with_source(THSSource::default());
+    let client = ClientBuilder::new().build()?;
 
-    // 1. Get all stock codes
     println!("1. Fetching all stock codes...");
     let codes = client.get_all_codes(None).await?;
     println!("   Found {} stocks", codes.len());
 
-    // Show stocks by exchange
     let sh_count = codes
         .iter()
         .filter(|c| c.exchange.to_string() == "SH")
@@ -35,7 +30,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   - Shenzhen (SZ): {}", sz_count);
     println!();
 
-    // 2. Get historical K-line data (Daily)
     println!("2. Fetching daily K-line for 300059 (东方财富)...");
     let daily = client
         .get_market(
@@ -54,7 +48,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 3. Get weekly K-line data
     println!("3. Fetching weekly K-line for 600519 (贵州茅台)...");
     let weekly = client
         .get_market(
@@ -73,7 +66,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 4. Get current market prices
     println!("4. Fetching current prices for multiple stocks...");
     let stocks = ["300059", "600519"];
     let current = client.get_market_current(&stocks).await?;
@@ -95,7 +87,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 5. Get minute data
     println!("5. Fetching minute data for 600519...");
     let minutes = client.get_market_min("600519").await?;
     println!("   Fetched {} minute records", minutes.len());
@@ -115,7 +106,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        // Calculate price range
         let prices: Vec<f64> = minutes.iter().map(|m| m.price).collect();
         let min_price = prices.iter().cloned().fold(f64::INFINITY, f64::min);
         let max_price = prices.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
@@ -123,7 +113,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 6. Get stock info
     println!("6. Fetching stock info from different sources...");
     let test_stocks = ["300059", "600519"];
     for code in test_stocks {
@@ -142,12 +131,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 7. Test THS source directly
     println!("7. Testing THS source directly...");
     let ths = THSSource::default();
-    use tenk::traits::StockMarketSource;
 
-    // Get K-line from THS
     match ths
         .get_market(
             "600519",
@@ -166,7 +152,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("   THS K-line error: {}", e),
     }
 
-    // Get current from THS
     match ths.get_market_current(&["600519", "300059"]).await {
         Ok(data) => {
             println!("   THS current quotes: {} records", data.len());
@@ -177,7 +162,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("   THS current error: {}", e),
     }
 
-    // Get minute from THS
     match ths.get_market_min("600519").await {
         Ok(data) => {
             println!("   THS minute for 600519: {} records", data.len());

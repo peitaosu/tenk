@@ -6,9 +6,9 @@ use rust_i18n::t;
 use tenk::{DataClient, ETFCode, ETFCurrentData, ETFMarketData, ETFMinuteData};
 
 use crate::ETFAction;
+use crate::i18n::{format_amount_i18n, format_volume_i18n};
 use crate::output::{
-    OutputConfig, TableRow, change_pct_cell, format_amount, format_volume, price_cell_3,
-    print_output, right_cell,
+    OutputConfig, TableRow, change_pct_cell, price_cell_3, print_output, right_cell,
 };
 
 /// Handles ETF commands.
@@ -80,8 +80,8 @@ impl TableRow for ETFCurrentData {
             Cell::new(&self.short_name),
             price_cell_3(self.price),
             change_pct_cell(change_pct),
-            right_cell(format_volume(self.volume)),
-            right_cell(format_amount(self.amount)),
+            right_cell(format_volume_i18n(self.volume)),
+            right_cell(format_amount_i18n(self.amount)),
         ]
     }
 }
@@ -107,7 +107,7 @@ impl TableRow for ETFMarketData {
             price_cell_3(self.high),
             price_cell_3(self.low),
             price_cell_3(self.close),
-            right_cell(format_volume(self.volume)),
+            right_cell(format_volume_i18n(self.volume)),
             change_pct_cell(change_pct),
         ]
     }
@@ -131,8 +131,8 @@ impl TableRow for ETFMinuteData {
             price_cell_3(self.price),
             price_cell_3(self.avg_price),
             change_pct_cell(self.change_pct),
-            right_cell(format_volume(self.volume)),
-            right_cell(format_amount(self.amount)),
+            right_cell(format_volume_i18n(self.volume)),
+            right_cell(format_amount_i18n(self.amount)),
         ]
     }
 }

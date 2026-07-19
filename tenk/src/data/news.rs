@@ -50,6 +50,22 @@ impl NewsCategory {
             _ => None,
         }
     }
+
+    /// Parses from CLI/MCP name or column code (defaults to finance).
+    pub fn from_name(name: &str) -> Self {
+        Self::from_column_code(name).unwrap_or_else(|| {
+            match name.to_lowercase().as_str() {
+                "finance" => NewsCategory::Finance,
+                "company" => NewsCategory::Company,
+                "stock" => NewsCategory::Stock,
+                "us" | "usmarket" => NewsCategory::USMarket,
+                "global" => NewsCategory::Global,
+                "domestic" => NewsCategory::Domestic,
+                "industry" => NewsCategory::Industry,
+                _ => NewsCategory::Finance,
+            }
+        })
+    }
 }
 
 impl std::fmt::Display for NewsCategory {
@@ -145,4 +161,43 @@ pub struct NewsContent {
     pub related_stocks: Vec<String>,
     /// Images
     pub images: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_column_code() {
+        assert_eq!(NewsCategory::Finance.to_column_code(), "102");
+        assert_eq!(NewsCategory::Industry.to_column_code(), "115");
+    }
+
+    #[test]
+    fn test_from_column_code() {
+        assert_eq!(
+            NewsCategory::from_column_code("104"),
+            Some(NewsCategory::Stock)
+        );
+        assert_eq!(NewsCategory::from_column_code("999"), None);
+    }
+
+    #[test]
+    fn test_from_name_by_keyword() {
+        assert_eq!(NewsCategory::from_name("company"), NewsCategory::Company);
+        assert_eq!(NewsCategory::from_name("US"), NewsCategory::USMarket);
+        assert_eq!(NewsCategory::from_name("usmarket"), NewsCategory::USMarket);
+        assert_eq!(NewsCategory::from_name("unknown"), NewsCategory::Finance);
+    }
+
+    #[test]
+    fn test_from_name_by_column_code() {
+        assert_eq!(NewsCategory::from_name("115"), NewsCategory::Industry);
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(NewsCategory::USMarket.to_string(), "US Market");
+        assert_eq!(NewsCategory::Finance.to_string(), "Finance");
+    }
 }

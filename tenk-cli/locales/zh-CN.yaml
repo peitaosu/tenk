@@ -79,6 +79,13 @@ headers:
   # 新闻表头
   id: "ID"
   source: "来源"
+  industry: "行业"
+  secid: "Secid"
+  em_code: "东财代码"
+  ths_code: "同花顺代码"
+  open_interest: "持仓量"
+  indicator: "指标"
+  fields: "字段数"
 
 # 消息
 messages:

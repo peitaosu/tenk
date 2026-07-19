@@ -5,7 +5,7 @@ use chrono::{Local, TimeZone};
 use colored::Colorize;
 use comfy_table::Cell;
 use rust_i18n::t;
-use tenk::{DataClient, NewsArticle, NewsCategory};
+use tenk::{DataClient, NewsArticle, NewsCategory, format_related_stocks_display};
 
 use crate::NewsAction;
 use crate::output::{OutputConfig, OutputFormat, TableRow, print_output};
@@ -18,7 +18,7 @@ pub async fn handle(action: NewsAction, client: &DataClient, config: &OutputConf
             page,
             limit,
         } => {
-            let cat = parse_category(&category);
+            let cat = NewsCategory::from_name(&category);
             let data = client.get_news(cat, page, limit).await?;
             print_output(&data, config);
         }
@@ -72,7 +72,8 @@ pub async fn handle(action: NewsAction, client: &DataClient, config: &OutputConf
                         println!("{} {}", t!("labels.author").bright_black(), author);
                     }
                     if !content.related_stocks.is_empty() {
-                        let (stocks, sectors) = format_related_stocks(&content.related_stocks);
+                        let (stocks, sectors) =
+                            format_related_stocks_display(&content.related_stocks);
                         if !stocks.is_empty() {
                             println!(
                                 "{} {}",
@@ -98,47 +99,6 @@ pub async fn handle(action: NewsAction, client: &DataClient, config: &OutputConf
         }
     }
     Ok(())
-}
-
-fn format_related_stocks(codes: &[String]) -> (Vec<String>, Vec<String>) {
-    let mut stocks = Vec::new();
-    let mut sectors = Vec::new();
-
-    for code in codes {
-        if let Some((market, symbol)) = code.split_once('.') {
-            let formatted = match market {
-                "0" => format!("{}.SZ", symbol),
-                "1" => format!("{}.SH", symbol),
-                "90" => {
-                    sectors.push(symbol.to_string());
-                    continue;
-                }
-                "105" => format!("{} (NASDAQ)", symbol),
-                "106" => format!("{} (NYSE)", symbol),
-                "116" => format!("{}.HK", symbol),
-                "118" => format!("{} (KR)", symbol),
-                _ => code.clone(),
-            };
-            stocks.push(formatted);
-        } else {
-            stocks.push(code.clone());
-        }
-    }
-
-    (stocks, sectors)
-}
-
-fn parse_category(s: &str) -> NewsCategory {
-    match s.to_lowercase().as_str() {
-        "finance" | "102" => NewsCategory::Finance,
-        "company" | "103" => NewsCategory::Company,
-        "stock" | "104" => NewsCategory::Stock,
-        "us" | "usmarket" | "105" => NewsCategory::USMarket,
-        "global" | "111" => NewsCategory::Global,
-        "domestic" | "106" => NewsCategory::Domestic,
-        "industry" | "115" => NewsCategory::Industry,
-        _ => NewsCategory::Finance,
-    }
 }
 
 impl TableRow for NewsArticle {

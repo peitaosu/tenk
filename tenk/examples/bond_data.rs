@@ -1,7 +1,6 @@
 //! Convertible bond data example.
 
-use tenk::DataClient;
-use tenk::sources::{EastMoneySource, SinaSource, THSSource};
+use tenk::ClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,26 +10,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== tenk Convertible Bond Data Example ===\n");
 
-    // Create client with bond sources
-    let client = DataClient::new()
-        .with_bond_info_source(THSSource::default())
-        .with_bond_info_source(EastMoneySource::default())
-        .with_bond_market_source(EastMoneySource::default())
-        .with_bond_market_source(SinaSource::default());
+    let client = ClientBuilder::new().build()?;
 
-    // 1. Get all convertible bonds
     println!("1. Fetching all convertible bond data...");
     let bonds = client.get_bond_current(None).await?;
     println!("   Found {} convertible bonds\n", bonds.len());
 
-    // 2. Show bonds with active trading (price > 0)
     let active_bonds: Vec<_> = bonds
         .iter()
         .filter(|b| b.price > 0.0 && b.volume > 0)
         .collect();
     println!("2. Active bonds (with trading): {}\n", active_bonds.len());
 
-    // 3. Top gainers
     let mut gainers: Vec<_> = active_bonds.iter().filter(|b| b.change_pct > 0.0).collect();
     gainers.sort_by(|a, b| b.change_pct.partial_cmp(&a.change_pct).unwrap());
 
@@ -52,7 +43,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 4. Top losers
     let mut losers: Vec<_> = active_bonds.iter().filter(|b| b.change_pct < 0.0).collect();
     losers.sort_by(|a, b| a.change_pct.partial_cmp(&b.change_pct).unwrap());
 
@@ -74,7 +64,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 5. Most active by volume
     let mut by_volume = active_bonds.clone();
     by_volume.sort_by(|a, b| b.volume.cmp(&a.volume));
 
@@ -98,7 +87,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 6. Price statistics
     let prices: Vec<f64> = active_bonds.iter().map(|b| b.price).collect();
     if !prices.is_empty() {
         let avg_price: f64 = prices.iter().sum::<f64>() / prices.len() as f64;
@@ -115,7 +103,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("   Discount (<100): {} bonds", discount_count);
     }
 
-    // 7. Query specific bond
     println!("\n7. Querying specific bond (127046)...");
     let specific_codes = ["127046"];
     let specific_bonds = client.get_bond_current(Some(&specific_codes)).await?;

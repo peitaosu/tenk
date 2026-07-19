@@ -4,18 +4,16 @@ use anyhow::Result;
 use colored::Colorize;
 use comfy_table::{Cell, CellAlignment, Color};
 use rust_i18n::t;
-use tenk::sources::EastMoneySource;
-use tenk::traits::{DividendSource, HoldingsSource, ValuationSource};
 use tenk::{
     CurrentMarketData, DataClient, DividendData, FundHolding, MarketData, MinuteData,
     OrderBookData, StockCode, StockInfo, StockValuation, TickData, TopHolder,
 };
 
 use crate::StockAction;
-use crate::i18n::pad_display_width;
+use crate::i18n::{format_amount_i18n, format_volume_i18n, pad_display_width};
 use crate::output::{
-    OutputConfig, SingleDisplay, TableRow, change_pct_cell, format_amount, format_volume,
-    price_cell, print_output, print_single, right_cell,
+    OutputConfig, SingleDisplay, TableRow, change_pct_cell, print_output, print_single,
+    price_cell, right_cell,
 };
 
 /// Handles stock commands.
@@ -64,23 +62,19 @@ pub async fn handle(action: StockAction, client: &DataClient, config: &OutputCon
             print_single(&data, config);
         }
         StockAction::Valuation { symbol } => {
-            let source = EastMoneySource::default();
-            let data = source.get_valuation(&symbol).await?;
+            let data = client.get_valuation(&symbol).await?;
             print_single(&data, config);
         }
         StockAction::Holders { symbol } => {
-            let source = EastMoneySource::default();
-            let data = source.get_top_holders(&symbol).await?;
+            let data = client.get_top_holders(&symbol).await?;
             print_output(&data, config);
         }
         StockAction::Funds { symbol, limit } => {
-            let source = EastMoneySource::default();
-            let data = source.get_fund_holdings(&symbol, limit).await?;
+            let data = client.get_fund_holdings(&symbol, limit).await?;
             print_output(&data, config);
         }
         StockAction::Dividend { symbol } => {
-            let source = EastMoneySource::default();
-            let data = source.get_dividends(&symbol).await?;
+            let data = client.get_dividends(&symbol).await?;
             print_output(&data, config);
         }
         StockAction::List { exchange, limit } => {
@@ -119,8 +113,8 @@ impl TableRow for CurrentMarketData {
             Cell::new(&self.short_name),
             price_cell(self.price),
             change_pct_cell(self.change_pct),
-            right_cell(format_volume(self.volume)),
-            right_cell(format_amount(self.amount)),
+            right_cell(format_volume_i18n(self.volume)),
+            right_cell(format_amount_i18n(self.amount)),
         ]
     }
 }
@@ -145,7 +139,7 @@ impl TableRow for MarketData {
             price_cell(self.high),
             price_cell(self.low),
             price_cell(self.close),
-            right_cell(format_volume(self.volume)),
+            right_cell(format_volume_i18n(self.volume)),
             change_pct_cell(self.change_pct),
         ]
     }
@@ -169,8 +163,8 @@ impl TableRow for MinuteData {
             price_cell(self.price),
             price_cell(self.avg_price),
             change_pct_cell(self.change_pct),
-            right_cell(format_volume(self.volume)),
-            right_cell(format_amount(self.amount)),
+            right_cell(format_volume_i18n(self.volume)),
+            right_cell(format_amount_i18n(self.amount)),
         ]
     }
 }
@@ -235,7 +229,7 @@ impl SingleDisplay for OrderBookData {
                     "  {} {:>10.2}  {:>12}",
                     format!("S{}", i + 1).red(),
                     self.sell_prices[i],
-                    format_volume(self.sell_volumes[i])
+                    format_volume_i18n(self.sell_volumes[i])
                 );
             }
         }
@@ -249,7 +243,7 @@ impl SingleDisplay for OrderBookData {
                     "  {} {:>10.2}  {:>12}",
                     format!("B{}", i + 1).green(),
                     self.buy_prices[i],
-                    format_volume(self.buy_volumes[i])
+                    format_volume_i18n(self.buy_volumes[i])
                 );
             }
         }
@@ -287,14 +281,14 @@ impl SingleDisplay for StockInfo {
             println!(
                 "  {} {}",
                 pad_display_width(&t!("labels.total_shares"), LABEL_WIDTH).dimmed(),
-                format_volume(total)
+                format_volume_i18n(total)
             );
         }
         if let Some(circ) = self.circulating_shares {
             println!(
                 "  {} {}",
                 pad_display_width(&t!("labels.circulating"), LABEL_WIDTH).dimmed(),
-                format_volume(circ)
+                format_volume_i18n(circ)
             );
         }
         if let Some(date) = self.list_date {
@@ -325,12 +319,12 @@ impl SingleDisplay for StockValuation {
         println!(
             "  {} {}",
             pad_display_width(&t!("labels.market_cap"), LABEL_WIDTH).dimmed(),
-            format_amount(self.market_cap)
+            format_amount_i18n(self.market_cap)
         );
         println!(
             "  {} {}",
             pad_display_width(&t!("labels.float_cap"), LABEL_WIDTH).dimmed(),
-            format_amount(self.float_cap)
+            format_amount_i18n(self.float_cap)
         );
         println!("{}", "─".repeat(55));
         if let Some(pe) = self.pe_ttm {
@@ -402,14 +396,14 @@ impl SingleDisplay for StockValuation {
             println!(
                 "  {} {}",
                 pad_display_width(&t!("labels.revenue"), LABEL_WIDTH).dimmed(),
-                format_amount(rev)
+                format_amount_i18n(rev)
             );
         }
         if let Some(profit) = self.net_profit {
             println!(
                 "  {} {}",
                 pad_display_width(&t!("labels.net_profit"), LABEL_WIDTH).dimmed(),
-                format_amount(profit)
+                format_amount_i18n(profit)
             );
         }
         if let Some(yoy) = self.revenue_yoy {
@@ -445,15 +439,15 @@ impl TableRow for TopHolder {
         vec![
             right_cell(self.rank),
             Cell::new(&self.holder_name),
-            right_cell(format_volume(self.hold_quantity)),
+            right_cell(format_volume_i18n(self.hold_quantity)),
             right_cell(format!("{:.2}%", self.hold_ratio)),
             right_cell(
                 self.change_quantity
                     .map(|c| {
                         if c > 0 {
-                            format!("+{}", format_volume(c as u64))
+                            format!("+{}", format_volume_i18n(c as u64))
                         } else if c < 0 {
-                            format!("-{}", format_volume((-c) as u64))
+                            format!("-{}", format_volume_i18n((-c) as u64))
                         } else {
                             "0".to_string()
                         }
@@ -483,7 +477,7 @@ impl TableRow for FundHolding {
             Cell::new(&self.stock_name),
             Cell::new(self.report_date.to_string()),
             Cell::new(&self.fund_name),
-            right_cell(format_volume(self.hold_shares)),
+            right_cell(format_volume_i18n(self.hold_shares)),
             right_cell(format!("{:.2}%", self.hold_ratio)),
         ]
     }

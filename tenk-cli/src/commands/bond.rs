@@ -7,9 +7,9 @@ use rust_i18n::t;
 use tenk::{BondCurrentData, ConvertibleBondCode, DataClient};
 
 use crate::BondAction;
+use crate::i18n::{format_amount_i18n, format_volume_i18n};
 use crate::output::{
-    OutputConfig, TableRow, change_pct_cell, format_amount, format_volume, price_cell,
-    print_output, right_cell,
+    OutputConfig, TableRow, change_pct_cell, price_cell, print_output, right_cell,
 };
 
 /// Handles bond commands.
@@ -82,8 +82,8 @@ impl TableRow for BondCurrentData {
             Cell::new(&self.bond_name),
             price_cell(self.price),
             change_pct_cell(self.change_pct),
-            right_cell(format_volume(self.volume)),
-            right_cell(format_amount(self.amount)),
+            right_cell(format_volume_i18n(self.volume)),
+            right_cell(format_amount_i18n(self.amount)),
         ]
     }
 }

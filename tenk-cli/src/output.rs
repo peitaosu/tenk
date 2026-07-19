@@ -10,8 +10,6 @@ use serde::Serialize;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 
-use crate::i18n::{format_amount_i18n, format_volume_i18n};
-
 /// Output format for CLI results.
 #[derive(Clone, Copy, ValueEnum, Debug, Default)]
 pub enum OutputFormat {
@@ -221,16 +219,6 @@ pub trait SingleDisplay {
     fn print_single(&self);
 }
 
-/// Formats volume with unit suffix.
-pub fn format_volume(vol: u64) -> String {
-    format_volume_i18n(vol)
-}
-
-/// Formats amount with unit suffix.
-pub fn format_amount(amount: f64) -> String {
-    format_amount_i18n(amount)
-}
-
 /// Formats change percentage with sign.
 pub fn format_change_pct(pct: f64) -> String {
     if pct >= 0.0 {
@@ -266,4 +254,34 @@ pub fn price_cell(value: f64) -> Cell {
 /// Creates a price cell with 3 decimal places.
 pub fn price_cell_3(value: f64) -> Cell {
     Cell::new(format!("{:.3}", value)).set_alignment(CellAlignment::Right)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_change_pct_positive() {
+        assert_eq!(format_change_pct(1.234), "+1.23%");
+    }
+
+    #[test]
+    fn test_format_change_pct_negative() {
+        assert_eq!(format_change_pct(-2.5), "-2.50%");
+    }
+
+    #[test]
+    fn test_format_change_pct_zero() {
+        assert_eq!(format_change_pct(0.0), "+0.00%");
+    }
+
+    #[test]
+    fn test_change_pct_cell_content() {
+        let up = change_pct_cell(1.0);
+        let down = change_pct_cell(-1.0);
+        let flat = change_pct_cell(0.0);
+        assert!(up.content().contains('+'));
+        assert!(down.content().contains('-'));
+        assert!(flat.content().contains("0.00"));
+    }
 }

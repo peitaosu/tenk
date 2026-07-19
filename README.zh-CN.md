@@ -4,7 +4,21 @@
 
 > 大盘还要上去，要涨到一万点！
 
-多数据源行情数据库和命令行工具，支持 A 股、ETF 和可转债。
+多数据源 A 股、ETF、可转债行情库与命令行工具。
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [架构](docs/zh-CN/architecture.md) | 工作区结构、模块划分、请求流程 |
+| [库](docs/zh-CN/library.md) | `ClientBuilder`、`DataClient`、回退机制 |
+| [数据源](docs/zh-CN/sources.md) | 东方财富、新浪、同花顺 — 能力矩阵 |
+| [数据类型](docs/zh-CN/data-types.md) | 核心枚举与结构体 |
+| [命令行](docs/zh-CN/cli.md) | CLI 用法 |
+| [MCP 服务](docs/zh-CN/mcp.md) | Model Context Protocol 集成 |
+| [开发](docs/zh-CN/development.md) | 构建、测试、示例 |
+
+English: [architecture](docs/architecture.md) · [library](docs/library.md) · [sources](docs/sources.md) · [CLI](docs/cli.md) · [MCP](docs/mcp.md) · [development](docs/development.md)
 
 ## 构建
 
@@ -12,68 +26,45 @@
 cargo build --release
 ```
 
-## 库
+## 快速开始
+
+**库**
 
 ```toml
 [dependencies]
-tenk = "0.1"
+tenk = "0.2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use tenk::sources::EastMoneySource;
-use tenk::DataClient;
+use tenk::ClientBuilder;
 
-let client = DataClient::new().with_source(EastMoneySource::default());
-let prices = client.get_market_current(&["600519"]).await?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = ClientBuilder::new().build()?;
+    let prices = client.get_market_current(&["600519"]).await?;
+    Ok(())
+}
 ```
 
-📖 [库文档](tenk/README.md)
-
-## 命令行
+**命令行**
 
 ```bash
-# 股票行情
 tenk stock quote 600519
-
-# K线数据
 tenk stock kline 600519 -l 10
-
-# ETF行情
 tenk etf quote 510300
-
-# 可转债涨幅榜
 tenk bond quote --top-gainers 10
-
-# 输出为 JSON/CSV
 tenk stock quote 600519 -f json
-tenk stock list -f csv > stocks.csv
 ```
 
-📖 [命令行文档](tenk-cli/README.md)
-
-## MCP 服务
-
-作为 MCP 服务运行，供 AI 助手调用：
+**MCP**
 
 ```bash
 tenk --mcp
 ```
 
-添加到 Cursor `mcp.json`：
-```json
-{
-  "mcpServers": {
-    "tenk": {
-      "command": "/path/to/tenk",
-      "args": ["--mcp"]
-    }
-  }
-}
-```
-
-📖 [MCP 工具列表](tenk-cli/README.md#available-mcp-tools)
+Cursor 配置见 [docs/zh-CN/mcp.md](docs/zh-CN/mcp.md)。
 
 ## 开源许可
 
 MIT
-

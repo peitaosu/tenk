@@ -16,34 +16,18 @@ path = "src/main.rs"
 
 [dependencies]
 tenk = { version = "0.2.0", path = "../tenk" }
-
-# Async runtime
-tokio = { version = "1.35", features = ["full", "io-std"] }
-
-# CLI argument parsing
-clap = { version = "4.4", features = ["derive"] }
-
-# Serialization for output
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-csv = "1.4"
-comfy-table = "7"
-colored = "2"
-
-# Error handling
-anyhow = "1.0"
-
-# Date/time
-chrono = "0.4"
-
-# Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# MCP Server
-rmcp = { version = "0.12", features = ["server", "transport-io", "macros"] }
-schemars = "1"
-
-# Internationalization
-rust-i18n = "3"
-unicode-width = "0.2"
+tokio.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+csv.workspace = true
+comfy-table.workspace = true
+colored.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+rmcp.workspace = true
+schemars.workspace = true
+rust-i18n.workspace = true
+unicode-width.workspace = true

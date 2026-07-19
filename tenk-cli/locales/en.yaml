@@ -79,6 +79,13 @@ headers:
   # News headers
   id: "ID"
   source: "Source"
+  industry: "Industry"
+  secid: "Secid"
+  em_code: "EM Code"
+  ths_code: "THS Code"
+  open_interest: "OpenInt"
+  indicator: "Indicator"
+  fields: "Fields"
 
 # Messages
 messages:

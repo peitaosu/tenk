@@ -6,72 +6,64 @@ English | [简体中文](README.zh-CN.md)
 
 Multi-source market data library and CLI for Chinese stocks, ETFs, and bonds.
 
+## Documentation
+
+| Doc | Description |
+|-----|-------------|
+| [Architecture](docs/architecture.md) | Workspace layout, modules, request flow |
+| [Library](docs/library.md) | `ClientBuilder`, `DataClient`, fallback behavior |
+| [Data Sources](docs/sources.md) | EastMoney, Sina, THS — capability matrix |
+| [Data Types](docs/data-types.md) | Core enums and structs |
+| [CLI](docs/cli.md) | Command-line interface |
+| [MCP Server](docs/mcp.md) | Model Context Protocol integration |
+| [Development](docs/development.md) | Build, test, examples |
+
+中文：[架构](docs/zh-CN/architecture.md) · [库](docs/zh-CN/library.md) · [数据源](docs/zh-CN/sources.md) · [命令行](docs/zh-CN/cli.md) · [MCP](docs/zh-CN/mcp.md) · [开发](docs/zh-CN/development.md)
+
 ## Build
 
 ```bash
 cargo build --release
 ```
 
-## Library
+## Quick start
+
+**Library**
 
 ```toml
 [dependencies]
-tenk = "0.1"
+tenk = "0.2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use tenk::sources::EastMoneySource;
-use tenk::DataClient;
+use tenk::ClientBuilder;
 
-let client = DataClient::new().with_source(EastMoneySource::default());
-let prices = client.get_market_current(&["600519"]).await?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = ClientBuilder::new().build()?;
+    let prices = client.get_market_current(&["600519"]).await?;
+    Ok(())
+}
 ```
 
-📖 [Library Documentation](tenk/README.md)
-
-## CLI
+**CLI**
 
 ```bash
-# Stock quote
 tenk stock quote 600519
-
-# K-line data
 tenk stock kline 600519 -l 10
-
-# ETF quote
 tenk etf quote 510300
-
-# Bond top gainers
 tenk bond quote --top-gainers 10
-
-# Output as JSON/CSV
 tenk stock quote 600519 -f json
-tenk stock list -f csv > stocks.csv
 ```
 
-📖 [CLI Documentation](tenk-cli/README.md)
-
-## MCP Server
-
-Run as MCP server for AI assistants:
+**MCP**
 
 ```bash
 tenk --mcp
 ```
 
-Add to Cursor `mcp.json`:
-```json
-{
-  "mcpServers": {
-    "tenk": {
-      "command": "/path/to/tenk",
-      "args": ["--mcp"]
-    }
-  }
-}
-```
-
-📖 [MCP Tools Reference](tenk-cli/README.md#available-mcp-tools)
+See [docs/mcp.md](docs/mcp.md) for Cursor configuration.
 
 ## License
 

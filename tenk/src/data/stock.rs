@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use strum::{AsRefStr, EnumString, VariantNames};
 
 /// Stock exchange.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -44,6 +45,16 @@ impl Exchange {
             Exchange::Unknown => "",
         }
     }
+
+    /// Converts a stock code to EastMoney secid format.
+    pub fn eastmoney_secid(stock_code: &str) -> String {
+        let prefix = if stock_code.starts_with('6') || stock_code.starts_with('5') {
+            "1"
+        } else {
+            "0"
+        };
+        format!("{prefix}.{stock_code}")
+    }
 }
 
 impl std::fmt::Display for Exchange {
@@ -58,7 +69,20 @@ impl std::fmt::Display for Exchange {
 }
 
 /// K-line (candlestick) time period.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    AsRefStr,
+    EnumString,
+    VariantNames,
+)]
+#[strum(serialize_all = "snake_case")]
 pub enum KLineType {
     /// Daily K-line
     Daily = 1,
@@ -80,7 +104,7 @@ pub enum KLineType {
 
 impl KLineType {
     /// Converts to API value code.
-    pub fn to_api_value(&self) -> u32 {
+    pub fn to_api_value(self) -> u32 {
         match self {
             KLineType::Daily => 101,
             KLineType::Weekly => 102,
@@ -91,6 +115,11 @@ impl KLineType {
             KLineType::Min30 => 30,
             KLineType::Min60 => 60,
         }
+    }
+
+    /// Parses from CLI/MCP string (defaults to daily).
+    pub fn from_name(name: &str) -> Self {
+        name.parse().unwrap_or(Self::Daily)
     }
 }
 
@@ -643,6 +672,74 @@ mod tests {
     #[test]
     fn test_kline_type_api_value() {
         assert_eq!(KLineType::Daily.to_api_value(), 101);
+        assert_eq!(KLineType::Weekly.to_api_value(), 102);
+        assert_eq!(KLineType::Monthly.to_api_value(), 103);
+        assert_eq!(KLineType::Quarterly.to_api_value(), 104);
         assert_eq!(KLineType::Min5.to_api_value(), 5);
+        assert_eq!(KLineType::Min15.to_api_value(), 15);
+        assert_eq!(KLineType::Min30.to_api_value(), 30);
+        assert_eq!(KLineType::Min60.to_api_value(), 60);
+    }
+
+    #[test]
+    fn test_kline_type_from_name() {
+        assert_eq!(KLineType::from_name("daily"), KLineType::Daily);
+        assert_eq!(KLineType::from_name("weekly"), KLineType::Weekly);
+        assert_eq!(KLineType::from_name("min5"), KLineType::Min5);
+        assert_eq!(KLineType::from_name("unknown"), KLineType::Daily);
+    }
+
+    #[test]
+    fn test_exchange_market_prefix() {
+        assert_eq!(Exchange::SH.market_prefix(), "sh");
+        assert_eq!(Exchange::SZ.market_prefix(), "sz");
+        assert_eq!(Exchange::BJ.market_prefix(), "bj");
+        assert_eq!(Exchange::Unknown.market_prefix(), "");
+    }
+
+    #[test]
+    fn test_exchange_display() {
+        assert_eq!(Exchange::SH.to_string(), "SH");
+        assert_eq!(Exchange::SZ.to_string(), "SZ");
+    }
+
+    #[test]
+    fn test_eastmoney_secid() {
+        assert_eq!(Exchange::eastmoney_secid("600519"), "1.600519");
+        assert_eq!(Exchange::eastmoney_secid("300059"), "0.300059");
+        assert_eq!(Exchange::eastmoney_secid("510300"), "1.510300");
+    }
+
+    #[test]
+    fn test_stock_code_sz_full_symbol() {
+        let stock = StockCode::new("300059".to_string(), "东方财富".to_string(), Exchange::SZ);
+        assert_eq!(stock.full_symbol(), "sz300059");
+    }
+
+    #[test]
+    fn test_market_data_is_valid() {
+        let valid = MarketData {
+            stock_code: "600519".to_string(),
+            trade_time: Utc::now(),
+            trade_date: NaiveDate::from_ymd_opt(2025, 1, 15).unwrap(),
+            open: 100.0,
+            close: 101.0,
+            high: 102.0,
+            low: 99.0,
+            volume: 1000,
+            amount: 100000.0,
+            change: 1.0,
+            change_pct: 1.0,
+            turnover_ratio: 0.5,
+            pre_close: 100.0,
+        };
+        assert!(valid.is_valid());
+
+        let invalid = MarketData {
+            volume: 0,
+            amount: 0.0,
+            ..valid
+        };
+        assert!(!invalid.is_valid());
     }
 }

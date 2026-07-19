@@ -1,7 +1,6 @@
 //! ETF data example.
 
-use tenk::sources::{EastMoneySource, SinaSource, THSSource};
-use tenk::{DataClient, KLineType};
+use tenk::{ClientBuilder, KLineType};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,18 +10,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== tenk ETF Data Example ===\n");
 
-    // Create client with ETF sources
-    let client = DataClient::new()
-        .with_fund_source(EastMoneySource::default())
-        .with_fund_source(THSSource::default())
-        .with_fund_source(SinaSource::default());
+    let client = ClientBuilder::new().build()?;
 
-    // 1. Get all ETF codes
     println!("1. Fetching all ETF codes...");
     let etfs = client.get_all_etf_codes(None).await?;
     println!("   Found {} ETFs", etfs.len());
 
-    // Show top ETFs by NAV
     let mut sorted_etfs: Vec<_> = etfs.iter().filter(|e| e.net_value.is_some()).collect();
     sorted_etfs.sort_by(|a, b| {
         b.net_value
@@ -44,7 +37,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 2. Get ETF historical data
     let popular_etfs = [("510300", "沪深300ETF"), ("159915", "创业板ETF")];
 
     println!("2. Fetching historical data for popular ETFs...");
@@ -65,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let change = (last.close - first.open) / first.open * 100.0;
                     println!("   {} ({}):", code, name);
                     println!(
-                        "      Records: {}, Period change: {:+.2}%",
+                        "   Records: {}, Period change: {:+.2}%",
                         data.len(),
                         change
                     );
@@ -76,7 +68,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 3. Get ETF current prices
     println!("3. Fetching current ETF prices...");
     let etf_codes: Vec<&str> = popular_etfs.iter().map(|(c, _)| *c).collect();
     match client.get_etf_current(&etf_codes).await {
@@ -103,7 +94,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 4. Get ETF minute data
     println!("4. Fetching minute data for 510300 (沪深300ETF)...");
     match client.get_etf_min("510300").await {
         Ok(minutes) => {

@@ -117,5 +117,30 @@ mod tests {
 
         let err = DataError::NoDataAvailable;
         assert!(!err.is_recoverable());
+
+        let err = DataError::not_supported("feature");
+        assert!(err.is_recoverable());
+
+        let err = DataError::invalid_stock_code("000");
+        assert!(!err.is_recoverable());
+
+        let err = DataError::invalid_date("bad date");
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_error_helpers() {
+        assert_eq!(
+            DataError::rate_limited("sina").to_string(),
+            "Rate Limit Exceeded: sina"
+        );
+        assert_eq!(
+            DataError::not_supported("ticks").to_string(),
+            "Not Supported: ticks"
+        );
+        assert_eq!(
+            DataError::invalid_date("range").to_string(),
+            "Invalid Date: range"
+        );
     }
 }

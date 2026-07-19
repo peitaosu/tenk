@@ -89,6 +89,13 @@ impl RequestConfig {
         self.headers = Some(headers);
         self
     }
+
+    pub fn with_proxy_opt(mut self, proxy: Option<&str>) -> Self {
+        if let Some(proxy_url) = proxy {
+            self.proxy = Some(proxy_url.to_string());
+        }
+        self
+    }
 }
 
 /// HTTP client with retry logic.
@@ -253,6 +260,15 @@ mod tests {
         assert_eq!(config.max_retries, 5);
         assert_eq!(config.retry_wait_ms, 2000);
         assert_eq!(config.timeout, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn test_config_with_proxy_opt() {
+        let with_proxy = RequestConfig::default().with_proxy_opt(Some("http://127.0.0.1:7890"));
+        assert_eq!(with_proxy.proxy.as_deref(), Some("http://127.0.0.1:7890"));
+
+        let without_proxy = RequestConfig::default().with_proxy_opt(None);
+        assert!(without_proxy.proxy.is_none());
     }
 
     #[tokio::test]

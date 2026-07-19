@@ -3,12 +3,14 @@
 use async_trait::async_trait;
 
 use crate::data::{
-    BillboardDetail, BillboardItem, BlockTradeData, BondCurrentData, CapitalFlowData,
-    CapitalFlowHistory, ConvertibleBondCode, CurrentMarketData, DividendData, ETFCode,
-    ETFCurrentData, ETFMarketData, ETFMinuteData, EarningsForecast, FundHolding, IPOData,
-    InstitutionalResearchData, KLineType, MarginTradingData, MarketData, MinuteData, NewsArticle,
-    NewsCategory, NewsContent, OrderBookData, ResearchReportData, StockCode, StockConnectData,
-    StockInfo, StockValuation, TickData, TopHolder,
+    BillboardDetail, BillboardItem, BlockTradeData, BondCurrentData, BoardItem, CapitalFlowData,
+    CapitalFlowHistory, ConvertibleBondCode, CurrentMarketData, DerivativesQuote,
+    DividendData, ETFCode, ETFCurrentData, ETFMarketData, ETFMinuteData, EarningsForecast,
+    FinancialRecord, FinancialReportKind, FundHolding, FuturesContract, IndexCode, IPOData,
+    InstitutionalResearchData, KLineType, LimitPoolItem, LimitPoolKind, MacroRecord,
+    MarginTradingData, MarketData, MinuteData, NewsArticle, NewsCategory, NewsContent,
+    OptionContract, OptionExchange, OrderBookData, ResearchReportData, StockCode,
+    StockConnectData, StockInfo, StockValuation, TickData, TopHolder,
 };
 use crate::error::DataResult;
 
@@ -67,22 +69,6 @@ pub trait StockInfoSource: DataSource {
         let _ = stock_code;
         Err(crate::error::DataError::not_supported("get_stock_info"))
     }
-}
-
-/// Index market data source.
-#[async_trait]
-pub trait IndexMarketSource: DataSource {
-    /// Fetches historical index K-line market data.
-    async fn get_index_market(
-        &self,
-        index_code: &str,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
-        k_type: KLineType,
-    ) -> DataResult<Vec<MarketData>>;
-
-    /// Fetches real-time index quotes.
-    async fn get_index_current(&self, index_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>>;
 }
 
 /// Combined stock market and info source.
@@ -291,6 +277,158 @@ pub trait HoldingsSource: DataSource {
 pub trait DividendSource: DataSource {
     /// Get dividend history.
     async fn get_dividends(&self, stock_code: &str) -> DataResult<Vec<DividendData>>;
+}
+
+/// Index market data source.
+#[async_trait]
+pub trait IndexMarketSource: DataSource {
+    async fn get_index_list(&self, limit: Option<usize>) -> DataResult<Vec<IndexCode>>;
+
+    async fn get_index_current(&self, index_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
+        let _ = index_codes;
+        Err(crate::error::DataError::not_supported("get_index_current"))
+    }
+
+    async fn get_index_market(
+        &self,
+        index_code: &str,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        k_type: KLineType,
+    ) -> DataResult<Vec<MarketData>> {
+        let _ = (index_code, start_date, end_date, k_type);
+        Err(crate::error::DataError::not_supported("get_index_market"))
+    }
+}
+
+/// Sector / concept board source.
+#[async_trait]
+pub trait BoardMarketSource: DataSource {
+    async fn get_industry_boards(&self, limit: Option<usize>) -> DataResult<Vec<BoardItem>> {
+        let _ = limit;
+        Err(crate::error::DataError::not_supported("get_industry_boards"))
+    }
+
+    async fn get_concept_boards(&self, limit: Option<usize>) -> DataResult<Vec<BoardItem>> {
+        let _ = limit;
+        Err(crate::error::DataError::not_supported("get_concept_boards"))
+    }
+
+    async fn get_board_market(
+        &self,
+        board_code: &str,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        k_type: KLineType,
+    ) -> DataResult<Vec<MarketData>> {
+        let _ = (board_code, start_date, end_date, k_type);
+        Err(crate::error::DataError::not_supported("get_board_market"))
+    }
+
+    async fn get_board_constituents(
+        &self,
+        board_code: &str,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<StockCode>> {
+        let _ = (board_code, limit);
+        Err(crate::error::DataError::not_supported("get_board_constituents"))
+    }
+}
+
+/// Limit-up / limit-down pool source.
+#[async_trait]
+pub trait LimitPoolSource: DataSource {
+    async fn get_limit_pool(
+        &self,
+        kind: LimitPoolKind,
+        date: Option<&str>,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<LimitPoolItem>> {
+        let _ = (kind, date, limit);
+        Err(crate::error::DataError::not_supported("get_limit_pool"))
+    }
+}
+
+/// Macro economic data source.
+#[async_trait]
+pub trait MacroSource: DataSource {
+    async fn get_macro_cpi(&self, limit: Option<usize>) -> DataResult<Vec<MacroRecord>> {
+        let _ = limit;
+        Err(crate::error::DataError::not_supported("get_macro_cpi"))
+    }
+
+    async fn get_macro_gdp(&self, limit: Option<usize>) -> DataResult<Vec<MacroRecord>> {
+        let _ = limit;
+        Err(crate::error::DataError::not_supported("get_macro_gdp"))
+    }
+}
+
+/// Hong Kong / US quote source.
+#[async_trait]
+pub trait GlobalMarketSource: DataSource {
+    async fn get_hk_current(&self, codes: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
+        let _ = codes;
+        Err(crate::error::DataError::not_supported("get_hk_current"))
+    }
+
+    async fn get_us_current(&self, symbols: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
+        let _ = symbols;
+        Err(crate::error::DataError::not_supported("get_us_current"))
+    }
+}
+
+#[async_trait]
+pub trait FuturesSource: DataSource {
+    async fn get_futures_list(&self, limit: Option<usize>) -> DataResult<Vec<FuturesContract>> {
+        let _ = limit;
+        Err(crate::error::DataError::not_supported("get_futures_list"))
+    }
+
+    async fn get_futures_current(&self, secids: &[&str]) -> DataResult<Vec<DerivativesQuote>> {
+        let _ = secids;
+        Err(crate::error::DataError::not_supported("get_futures_current"))
+    }
+
+    async fn get_futures_market(
+        &self,
+        secid: &str,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        k_type: KLineType,
+    ) -> DataResult<Vec<MarketData>> {
+        let _ = (secid, start_date, end_date, k_type);
+        Err(crate::error::DataError::not_supported("get_futures_market"))
+    }
+}
+
+#[async_trait]
+pub trait OptionsSource: DataSource {
+    async fn get_options_list(
+        &self,
+        exchange: OptionExchange,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<OptionContract>> {
+        let _ = (exchange, limit);
+        Err(crate::error::DataError::not_supported("get_options_list"))
+    }
+
+    async fn get_options_current(&self, contract_codes: &[&str]) -> DataResult<Vec<DerivativesQuote>> {
+        let _ = contract_codes;
+        Err(crate::error::DataError::not_supported("get_options_current"))
+    }
+}
+
+#[async_trait]
+pub trait FinancialSource: DataSource {
+    async fn get_financial_statement(
+        &self,
+        stock_code: &str,
+        kind: FinancialReportKind,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<FinancialRecord>> {
+        let _ = (stock_code, kind, limit);
+        Err(crate::error::DataError::not_supported("get_financial_statement"))
+    }
 }
 
 #[cfg(test)]

@@ -116,5 +116,8 @@ mod tests {
     fn test_etf_code_full_symbol() {
         let etf = ETFCode::new("510300".to_string(), "沪深300ETF".to_string(), Exchange::SH);
         assert_eq!(etf.full_symbol(), "sh510300");
+
+        let etf_sz = ETFCode::new("159915".to_string(), "创业板ETF".to_string(), Exchange::SZ);
+        assert_eq!(etf_sz.full_symbol(), "sz159915");
     }
 }
