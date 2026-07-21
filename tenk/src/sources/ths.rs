@@ -11,19 +11,18 @@ use tracing::{debug, warn};
 use crate::data::{
     BondCurrentData, BoardItem, ConvertibleBondCode, CurrentMarketData, ETFCode, ETFCurrentData,
     ETFMarketData, ETFMinuteData, Exchange, KLineType, MarketData, MinuteData, NewsArticle,
-    NewsCategory, NewsContent, StockCode, StockInfo,
+    NewsCategory, NewsContent, ResearchReportData, StockCode, StockInfo,
 };
 use crate::error::{DataError, DataResult};
 use crate::request::{RequestConfig, RequestManager};
 use crate::util::{
     decode_gb18030, extract_ths_news_content, extract_ths_news_title, is_board_antibot_page,
-    kline_period_code, kline_scale, normalize_date_bound, parse_board_html, parse_jsonp,
-    parse_kline_records, parse_ths_concept_board_section, parse_ths_industry_board_links,
-    SinaKLineRecord,
+    kline_period_code, normalize_date_bound, parse_board_html, parse_jsonp, parse_trade_date,
+    parse_ths_concept_board_section, parse_ths_industry_board_links,
 };
 use crate::traits::{
     BondInfoSource, BondMarketSource, BoardMarketSource, DataSource, FundInfoSource,
-    FundMarketSource, NewsSource, StockInfoSource, StockMarketSource,
+    FundMarketSource, NewsSource, ResearchReportSource, StockInfoSource, StockMarketSource,
 };
 
 /// THS data source.
@@ -33,8 +32,8 @@ pub struct THSSource {
     data_request: RequestManager,
     q_request: RequestManager,
     hq_request: RequestManager,
-    chart_request: RequestManager,
     news_request: RequestManager,
+    stockpage_request: RequestManager,
 }
 
 impl THSSource {
@@ -116,8 +115,6 @@ impl THSSource {
             .with_headers(hq_headers)
             .with_proxy_opt(proxy);
 
-        let chart_config = RequestConfig::default().with_proxy_opt(proxy);
-
         let mut news_headers = HeaderMap::new();
         news_headers.insert(HOST, HeaderValue::from_static("news.10jqka.com.cn"));
         news_headers.insert(REFERER, HeaderValue::from_static("https://news.10jqka.com.cn/"));
@@ -132,13 +129,33 @@ impl THSSource {
             .with_headers(news_headers)
             .with_proxy_opt(proxy);
 
+        let mut stockpage_headers = HeaderMap::new();
+        stockpage_headers.insert(
+            HOST,
+            HeaderValue::from_static("stockpage.10jqka.com.cn"),
+        );
+        stockpage_headers.insert(
+            REFERER,
+            HeaderValue::from_static("https://stockpage.10jqka.com.cn/"),
+        );
+        stockpage_headers.insert(COOKIE, HeaderValue::from_static("v=1"));
+        stockpage_headers.insert(
+            USER_AGENT,
+            HeaderValue::from_static(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:105.0) Gecko/20100101 Firefox/105.0",
+            ),
+        );
+        let stockpage_config = RequestConfig::default()
+            .with_headers(stockpage_headers)
+            .with_proxy_opt(proxy);
+
         Ok(Self {
             request: RequestManager::new(config)?,
             data_request: RequestManager::new(data_config)?,
             q_request: RequestManager::new(q_config)?,
             hq_request: RequestManager::new(hq_config)?,
-            chart_request: RequestManager::new(chart_config)?,
             news_request: RequestManager::new(news_config)?,
+            stockpage_request: RequestManager::new(stockpage_config)?,
         })
     }
 
@@ -148,8 +165,8 @@ impl THSSource {
             data_request: request.clone(),
             q_request: request.clone(),
             hq_request: request.clone(),
-            chart_request: request.clone(),
-            news_request: request,
+            news_request: request.clone(),
+            stockpage_request: request,
         }
     }
 
@@ -265,12 +282,10 @@ impl THSSource {
             Exchange::SH => "sh",
             Exchange::SZ => "sz",
             Exchange::BJ => "bj",
+            Exchange::HK => "hk",
+            Exchange::US => "",
             Exchange::Unknown => "sh",
         }
-    }
-
-    fn full_symbol(stock_code: &str) -> String {
-        format!("{}{}", Self::market_prefix(stock_code), stock_code)
     }
 
     fn board_kline_period(k_type: KLineType) -> DataResult<&'static str> {
@@ -351,37 +366,6 @@ impl THSSource {
         }
 
         result
-    }
-
-    async fn fetch_sina_kline(
-        &self,
-        stock_code: &str,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
-        k_type: KLineType,
-    ) -> DataResult<Vec<MarketData>> {
-        let scale = kline_scale(k_type)
-            .ok_or_else(|| DataError::not_supported(format!("sina fallback kline {k_type:?}")))?;
-        let symbol = Self::full_symbol(stock_code);
-        let url = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData";
-        let params = [
-            ("symbol", symbol.as_str()),
-            ("scale", &scale.to_string()),
-            ("ma", "no"),
-            ("datalen", "1023"),
-        ];
-
-        debug!("Fetching THS Sina fallback K-line: {} scale={}", stock_code, scale);
-
-        let records: Vec<SinaKLineRecord> = self.chart_request.get_json_with_params(url, &params).await?;
-        let intraday = scale < 240;
-        Ok(parse_kline_records(
-            stock_code,
-            &records,
-            start_date,
-            end_date,
-            intraday,
-        ))
     }
 
     fn parse_bond_hq_line(line: &str) -> Option<BondCurrentData> {
@@ -662,9 +646,7 @@ impl StockMarketSource for THSSource {
         k_type: KLineType,
     ) -> DataResult<Vec<MarketData>> {
         if matches!(k_type, KLineType::Min5 | KLineType::Min15) {
-            return self
-                .fetch_sina_kline(stock_code, start_date, end_date, k_type)
-                .await;
+            return Err(DataError::not_supported(format!("ths kline {k_type:?}")));
         }
 
         let k_code = kline_period_code(k_type)?;
@@ -1416,6 +1398,98 @@ impl NewsSource for THSSource {
     }
 }
 
+fn ths_market_id(code: &str) -> Option<&'static str> {
+    match Exchange::from_stock_code(code) {
+        Exchange::SH => Some("17"),
+        Exchange::SZ => Some("33"),
+        Exchange::BJ => Some("151"),
+        Exchange::HK | Exchange::US | Exchange::Unknown => None,
+    }
+}
+
+fn ths_ms_to_date(ms: i64) -> NaiveDate {
+    let secs = ms / 1000;
+    Utc.timestamp_opt(secs, 0)
+        .single()
+        .map(|dt| dt.date_naive())
+        .unwrap_or_else(|| parse_trade_date(""))
+}
+
+#[async_trait]
+impl ResearchReportSource for THSSource {
+    async fn get_research_reports(
+        &self,
+        stock_code: Option<&str>,
+        page: u32,
+        limit: Option<usize>,
+    ) -> DataResult<Vec<ResearchReportData>> {
+        let code = stock_code.ok_or_else(|| DataError::custom("stock code required"))?;
+        if Exchange::from_stock_code(code) == Exchange::Unknown {
+            return Err(DataError::custom("invalid stock code"));
+        }
+        let market_id =
+            ths_market_id(code).ok_or_else(|| DataError::custom("unsupported market"))?;
+        let page_size = limit.unwrap_or(20).clamp(1, 50);
+        let params = [
+            ("code", code.to_string()),
+            ("marketId", market_id.to_string()),
+            ("pageSize", page_size.to_string()),
+            ("pageNum", page.max(1).to_string()),
+        ];
+        debug!("Fetching THS research reports for {}", code);
+        #[derive(Deserialize)]
+        struct ReportItem {
+            id: i64,
+            title: String,
+            author: Option<String>,
+            source: Option<String>,
+            #[serde(rename = "publishTime")]
+            publish_time: i64,
+        }
+        #[derive(Deserialize)]
+        struct ReportData {
+            #[serde(rename = "reportList")]
+            report_list: Vec<ReportItem>,
+        }
+        #[derive(Deserialize)]
+        struct ReportResp {
+            data: Option<ReportData>,
+        }
+        let response: ReportResp = self
+            .stockpage_request
+            .get_json_with_params(
+                "https://stockpage.10jqka.com.cn/stock_page/api/v1/stockpage/reports",
+                &params,
+            )
+            .await?;
+        let mut reports = response
+            .data
+            .map(|data| {
+                data.report_list
+                    .into_iter()
+                    .map(|item| ResearchReportData {
+                        report_id: item.id.to_string(),
+                        stock_code: code.to_string(),
+                        stock_name: String::new(),
+                        title: item.title,
+                        institution: item.source.unwrap_or_default(),
+                        analysts: item.author.unwrap_or_default(),
+                        rating: None,
+                        publish_date: ths_ms_to_date(item.publish_time),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if let Some(limit) = limit {
+            reports.truncate(limit);
+        }
+        if reports.is_empty() {
+            return Err(DataError::NoDataAvailable);
+        }
+        Ok(reports)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1463,5 +1537,12 @@ mod tests {
     fn test_board_kline_period() {
         assert_eq!(THSSource::board_kline_period(KLineType::Daily).unwrap(), "01");
         assert!(THSSource::board_kline_period(KLineType::Min5).is_err());
+    }
+
+    #[test]
+    fn test_ths_market_id() {
+        assert_eq!(ths_market_id("600519"), Some("17"));
+        assert_eq!(ths_market_id("000001"), Some("33"));
+        assert_eq!(ths_market_id("871981"), Some("151"));
     }
 }

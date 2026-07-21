@@ -6,14 +6,14 @@ use comfy_table::{Cell, CellAlignment, Color};
 use rust_i18n::t;
 use tenk::{
     CurrentMarketData, DataClient, DividendData, FundHolding, MarketData, MinuteData,
-    OrderBookData, StockCode, StockInfo, StockValuation, TickData, TopHolder,
+    OrderBookData, StockCode, StockInfo, StockValuation, TickData, TopHolder, TvAssetFilter,
 };
 
 use crate::StockAction;
 use crate::i18n::{format_amount_i18n, format_volume_i18n, pad_display_width};
 use crate::output::{
-    OutputConfig, SingleDisplay, TableRow, change_pct_cell, print_output, print_single,
-    price_cell, right_cell,
+    OutputConfig, SingleDisplay, TableRow, change_pct_cell, print_json_value, print_output,
+    print_single, price_cell, right_cell,
 };
 
 /// Handles stock commands.
@@ -90,6 +90,19 @@ pub async fn handle(action: StockAction, client: &DataClient, config: &OutputCon
             }
 
             print_output(&data, config);
+        }
+        StockAction::Search { query, filter, offset } => {
+            let filter = filter.as_deref().and_then(TvAssetFilter::from_name);
+            print_json_value(
+                &client.search_symbols(&query, filter, offset).await?,
+                config,
+            );
+        }
+        StockAction::Ta { symbol } => {
+            print_json_value(&client.get_technical_analysis(&symbol).await?, config);
+        }
+        StockAction::Analyst { symbol } => {
+            print_json_value(&client.get_analyst(&symbol).await?, config);
         }
     }
     Ok(())

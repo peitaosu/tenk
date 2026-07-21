@@ -8,6 +8,7 @@ pub mod market;
 pub mod news;
 pub mod related;
 pub mod stock;
+pub mod tradingview;
 
 pub use bond::*;
 pub use derivatives::*;
@@ -17,3 +18,4 @@ pub use market::*;
 pub use news::*;
 pub use related::*;
 pub use stock::*;
+pub use tradingview::*;

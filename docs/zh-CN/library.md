@@ -10,8 +10,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 ## ClientBuilder
 
-推荐入口。为所选 provider 注册全部相关 trait 实现。
-
 ```rust
 use tenk::ClientBuilder;
 
@@ -24,15 +22,16 @@ let client = ClientBuilder::with_sources(&[tenk::SourceKind::Sina])
 
 | `SourceKind` | 注册能力 |
 |--------------|----------|
-| `Eastmoney` | 股票、ETF、可转债、新闻、扩展行情（估值、资金流、龙虎榜等） |
-| `Sina` | 股票、ETF、可转债行情 |
-| `Ths` | 股票、ETF、可转债信息 |
+| `Eastmoney` | 股票、ETF、可转债、新闻、扩展行情 |
+| `Sina` | 股票、ETF、可转债、指数行情、期货行情、新闻、研报 |
+| `Ths` | 股票、ETF、可转债、板块、新闻、研报 |
+| `Tradingview` | 全球行情（WS）、搜索、TA、分析师、筛选、日历、指标 / 策略 / 回放 |
 
-默认：三个 provider 全部启用。
+默认：`SourceKind::DEFAULT`（与 `SourceKind::ALL` 相同）。MCP 使用 `SourceKind::ALL`。
 
 ## DataClient
 
-统一异步 API。方法委托给已配置数据源，并自动回退。
+异步 API。已配置多源时按 `priority()` 依次调用。
 
 ### 股票
 
@@ -83,7 +82,7 @@ let client = ClientBuilder::with_sources(&[tenk::SourceKind::Sina])
 | `get_capital_flow(codes)` | `Vec<CapitalFlowData>` |
 | `get_capital_flow_history(code, limit)` | `Vec<CapitalFlowHistory>` |
 | `get_billboard_list(date)` | `Vec<BillboardItem>` |
-| `get_billboard_detail(code, date)` | `BillboardDetail` |
+| `get_billboard_detail(code, date)` | `Vec<BillboardDetail>` |
 | `get_earnings_forecast(period, page, limit)` | `Vec<EarningsForecast>` |
 | `get_stock_connect(limit)` | `Vec<StockConnectData>` |
 | `get_margin_trading(code, limit)` | `Vec<MarginTradingData>` |
@@ -92,9 +91,48 @@ let client = ClientBuilder::with_sources(&[tenk::SourceKind::Sina])
 | `get_institutional_research(limit)` | `Vec<InstitutionalResearchData>` |
 | `get_research_reports(code, limit)` | `Vec<ResearchReportData>` |
 
-## 手动装配
+### TradingView
 
-需要细粒度控制时使用：
+WS 相关调用在多数网络环境下需要代理。
+
+| 方法 | 返回类型 |
+|------|----------|
+| `get_technical_analysis(symbol)` | `TvTechnicalAnalysis` |
+| `get_analyst(symbol)` | `TvAnalystData` |
+| `search_symbols(query, filter, offset)` | `Vec<TvSymbolMatch>` |
+| `run_screener(request)` | `TvScreenerResult` |
+| `get_hotlist(market, kind, limit)` | `TvScreenerResult` |
+| `get_economic_calendar(from, to, countries)` | `Vec<TvCalendarEvent>` |
+| `search_indicators(query)` | `Vec<TvIndicatorMeta>` |
+| `get_indicator_spec(id, version)` | `TvIndicatorSpec` |
+| `get_indicator_series(symbol, id, version, options)` | `TvIndicatorSeries` |
+| `get_strategy_report(symbol, id, version, options)` | `TvStrategyReport` |
+| `get_chart_replay(symbol, replay_from, steps, options)` | `TvReplayResult` |
+| `get_chart_drawings(layout, symbol, user_id)` | `Vec<TvDrawing>` |
+
+`get_chart_drawings` 合并 `chart_id` 1、2、`_shared`。需 session cookies。`get_strategy_report` 为 best-effort。
+
+### TradingViewSource
+
+TV REST 直连 API。通过 `TradingViewSource::try_new(proxy)` 或已装配客户端中的 TV 源获取。
+
+| 方法 | 返回类型 |
+|------|----------|
+| `resolve_auth_token()` | homepage 解析的 WS auth token |
+| `login(username, password)` | `TvUserSession` |
+| `private_indicators()` | `Vec<TvIndicatorMeta>` |
+| `pine_perm(pine_id)` | `TvPinePerm` |
+
+| `TvPinePerm` 方法 | 返回类型 |
+|-------------------|----------|
+| `list_users(limit)` | `Vec<TvPinePermUser>` |
+| `add_user(username, expiration)` | 状态字符串 |
+| `modify_expiration(username, expiration)` | 状态字符串 |
+| `remove_user(username)` | 状态字符串 |
+
+`private_indicators`、`pine_perm`、`get_chart_drawings` 需 session cookies。
+
+## 手动装配
 
 ```rust
 use tenk::{DataClient, sources::EastMoneySource};
@@ -105,17 +143,18 @@ let client = DataClient::new()
     .with_extended_market(em);
 ```
 
-`with_source` 要求 `StockMarketSource + StockInfoSource + Clone`。
-
 ## 错误
 
 所有方法返回 `DataResult<T>`（`Result<T, DataError>`）。
 
-| 错误 | 可恢复 | 行为 |
-|------|--------|------|
-| `Network`、`Parse`、`SourceUnavailable`、`RateLimitExceeded`、`NotSupported` | 是 | 尝试下一数据源 |
-| `NoDataAvailable` | 否 | 所有源均无数据 |
-| `InvalidStockCode`、`InvalidDate`、`Config`、`Custom` | 否 | 立即返回 |
+| 错误 | 多源 | 单源 |
+|------|------|------|
+| `Network`、`Parse`、`SourceUnavailable`、`RateLimitExceeded` | 下一源 | 直接返回 |
+| `NotSupported` | 下一源 | 直接返回 |
+| `NoDataAvailable` | 下一源 | 直接返回 |
+| `InvalidStockCode`、`InvalidDate`、`Config`、`Custom` | 直接返回 | 直接返回 |
+
+多源：该 trait 注册超过一个 provider。单源：仅一个 provider（如 `-s eastmoney`）。
 
 ## 示例
 
@@ -131,5 +170,7 @@ cargo run --example bond_data
 | 变量 | 使用者 |
 |------|--------|
 | `TENK_PROXY` | MCP 服务（`tenk --mcp`） |
+| `TENK_TV_SESSION`、`TENK_TV_SIGNATURE` | Drawings、私有指标、pine perm；WS token 解析 |
+| `TENK_TV_AUTH_TOKEN` | 可选 WS auth token 覆盖 |
 
 CLI 代理：`--proxy` 参数。

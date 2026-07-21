@@ -20,10 +20,21 @@ pub use data::{
     InstitutionalResearchData, KLineType, LimitPoolItem, LimitPoolKind, MacroRecord,
     MarginTradingData, MarketData, MinuteData, NewsArticle, NewsCategory, NewsContent,
     NewsListResult, NewsSearchResult, OptionContract, OptionExchange, OrderBookData, RelatedStock,
-    ResearchReportData, StockCode, StockConnectData, StockInfo, StockValuation, TickData, TopHolder,
+    ResearchReportData, StockCode, StockConnectData, StockInfo, StockSearchHit, StockValuation, TickData, TopHolder,
+    TvAnalystData, TvAnalystEstimates, TvAnalystForecasts, TvAnalystPriceTargets, TvAnalystRatings,
+    TvAssetFilter, TvCalendarEvent, TvChartBar, TvChartOptions, TvDrawing, TvEstimatePoint,
+    TvEstimateSeries, TvHotlistKind, TvIndicatorMeta, TvIndicatorSeries, TvIndicatorSpec,
+    TvMarketInfo, TvPinePermUser, TvQuote, TvReplayResult, TvScreenerRequest, TvScreenerResult,
+    TvStrategyReport, TvSymbolMatch, TvTechnicalAnalysis, TvAdvice, TvTimeFrame, TvUserSession,
+};
+pub use util::{
+    cn_market_date, format_cn_market_time, normalize_date_bound, parse_cn_market_time,
+    parse_trade_date,
 };
 pub use error::{DataError, DataResult};
 pub use request::{RequestConfig, RequestManager};
+pub use sources::tradingview::TvPinePerm;
+pub use sources::TradingViewSource;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

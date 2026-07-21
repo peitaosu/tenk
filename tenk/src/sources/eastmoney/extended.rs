@@ -7,16 +7,85 @@ use tracing::debug;
 use crate::data::{
     BillboardDetail, BillboardItem, BlockTradeData, CapitalFlowData,
     CapitalFlowHistory, DividendData, EarningsForecast, Exchange, FundHolding,
-    IPOData, InstitutionalResearchData, MarginTradingData, ResearchReportData, StockConnectData, StockValuation, TopHolder,
+    IPOData, InstitutionalResearchData, MarginTradingData, ResearchReportData, StockCode, StockConnectData, StockValuation, TopHolder,
 };
 use crate::error::DataResult;
-use crate::util::parse_trade_date;
+use crate::util::{normalize_date_bound, parse_trade_date};
 use crate::traits::{
     BillboardSource, BlockTradeSource, CapitalFlowSource,
     DividendSource, EarningsForecastSource,
     HoldingsSource, IPOSource, InstitutionalResearchSource, MarginTradingSource,
     ResearchReportSource, StockConnectSource, ValuationSource,
 };
+
+fn deserialize_opt_u32<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct OptU32Visitor;
+
+    impl<'de> Visitor<'de> for OptU32Visitor {
+        type Value = Option<u32>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("null, string, or number")
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.parse().ok())
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.parse().ok())
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(u32::try_from(value).ok())
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(u32::try_from(value).ok())
+        }
+
+        fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok((value as u64).try_into().ok())
+        }
+    }
+
+    deserializer.deserialize_any(OptU32Visitor)
+}
 
 #[async_trait]
 impl CapitalFlowSource for EastMoneySource {
@@ -26,10 +95,10 @@ impl CapitalFlowSource for EastMoneySource {
             return Ok(Vec::new());
         }
 
-        let secids: Vec<String> = stock_codes.iter().map(|c| Exchange::eastmoney_secid(c)).collect();
+        let secids: Vec<String> = stock_codes.iter().map(|c| Exchange::infer_eastmoney_secid(c)).collect();
         let secids_str = secids.join(",");
 
-        let url = "https://push2.eastmoney.com/api/qt/ulist.np/get";
+        let url = "https://push2delay.eastmoney.com/api/qt/ulist.np/get";
         let params = [
             ("fltt", "2"),
             ("secids", &secids_str),
@@ -102,7 +171,7 @@ impl CapitalFlowSource for EastMoneySource {
         stock_code: &str,
         limit: Option<usize>,
     ) -> DataResult<Vec<CapitalFlowHistory>> {
-        let secid = Exchange::eastmoney_secid(stock_code);
+        let secid = Exchange::infer_eastmoney_secid(stock_code);
         let lmt = limit.unwrap_or(30).to_string();
 
         let url = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get";
@@ -165,9 +234,11 @@ impl BillboardSource for EastMoneySource {
     async fn get_billboard_list(&self, date: Option<&str>) -> DataResult<Vec<BillboardItem>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
 
-        let trade_date = date
-            .map(|d| d.to_string())
-            .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
+        let today = chrono::Utc::now()
+            .with_timezone(&beijing_tz())
+            .format("%Y-%m-%d")
+            .to_string();
+        let trade_date = normalize_date_bound(date, &today);
         let filter = format!(
             "(TRADE_DATE<='{trade_date}')(TRADE_DATE>='{trade_date}')"
         );
@@ -239,6 +310,18 @@ impl BillboardSource for EastMoneySource {
             page_number += 1;
         }
 
+        if all_items.is_empty() && date.is_none() {
+            let today_date = parse_trade_date(&trade_date);
+            for offset in 1..=7 {
+                let prior = today_date - chrono::Days::new(offset);
+                let prior_str = prior.format("%Y-%m-%d").to_string();
+                let prior_items = self.get_billboard_list(Some(&prior_str)).await?;
+                if !prior_items.is_empty() {
+                    return Ok(prior_items);
+                }
+            }
+        }
+
         Ok(all_items
             .into_iter()
             .map(|item| BillboardItem {
@@ -263,7 +346,12 @@ impl BillboardSource for EastMoneySource {
         date: &str,
     ) -> DataResult<Vec<BillboardDetail>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
-        let filter = format!("(TRADE_DATE='{}')(SECURITY_CODE=\"{}\")", date, stock_code);
+        let today = chrono::Utc::now()
+            .with_timezone(&beijing_tz())
+            .format("%Y-%m-%d")
+            .to_string();
+        let trade_date = normalize_date_bound(Some(date), &today);
+        let filter = format!("(TRADE_DATE='{trade_date}')(SECURITY_CODE=\"{stock_code}\")");
 
         let buy_params = [
             ("reportName", "RPT_BILLBOARD_DAILYDETAILSBUY"),
@@ -454,7 +542,7 @@ impl EarningsForecastSource for EastMoneySource {
 impl StockConnectSource for EastMoneySource {
     /// Fetches Stock Connect data.
     async fn get_stock_connect(&self, limit: Option<usize>) -> DataResult<Vec<StockConnectData>> {
-        let url = "https://push2his.eastmoney.com/api/qt/kamt.kline/get";
+        let url = "https://push2delay.eastmoney.com/api/qt/kamt.kline/get";
         let params = [
             ("fields1", "f1,f3,f5"),
             ("fields2", "f51,f52,f53,f54,f55,f56"),
@@ -766,21 +854,25 @@ impl InstitutionalResearchSource for EastMoneySource {
     /// Fetches institutional research list.
     async fn get_institutional_research(
         &self,
+        page: u32,
         limit: Option<usize>,
     ) -> DataResult<Vec<InstitutionalResearchData>> {
         let url = "https://datacenter-web.eastmoney.com/api/data/v1/get";
+        let page_size = limit.unwrap_or(50).to_string();
+        let page_number = page.max(1).to_string();
         let params = [
             ("reportName", "RPT_ORG_SURVEYNEW"),
             (
                 "columns",
-                "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,NOTICE_DATE,NUMBERNEW,RECEIVE_OBJECT,RECEIVE_WAY_EXPLAIN,RECEPTIONIST",
+                "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,NOTICE_DATE,NUMBERNEW,SUM,RECEIVE_OBJECT,RECEIVE_WAY_EXPLAIN,RECEPTIONIST",
             ),
-            ("pageNumber", "1"),
-            ("pageSize", &limit.unwrap_or(50).to_string()),
-            ("sortTypes", "-1"),
-            ("sortColumns", "NOTICE_DATE"),
+            ("pageNumber", page_number.as_str()),
+            ("pageSize", page_size.as_str()),
+            ("sortTypes", "-1,-1"),
+            ("sortColumns", "NOTICE_DATE,SUM"),
             ("source", "WEB"),
             ("client", "WEB"),
+            ("filter", r#"(NUMBERNEW="1")(IS_SOURCE="1")"#),
         ];
 
         debug!("Fetching institutional research list");
@@ -803,8 +895,10 @@ impl InstitutionalResearchSource for EastMoneySource {
             name: String,
             #[serde(rename = "NOTICE_DATE")]
             notice_date: String,
-            #[serde(rename = "NUMBERNEW", default)]
-            org_num: Option<String>,
+            #[serde(rename = "NUMBERNEW", default, deserialize_with = "deserialize_opt_u32")]
+            org_num: Option<u32>,
+            #[serde(rename = "SUM", default, deserialize_with = "deserialize_opt_u32")]
+            visit_total: Option<u32>,
             #[serde(rename = "RECEIVE_OBJECT", default)]
             org_name: Option<String>,
             #[serde(rename = "RECEIVE_WAY_EXPLAIN", default)]
@@ -824,7 +918,7 @@ impl InstitutionalResearchSource for EastMoneySource {
                     stock_code: item.code,
                     stock_name: item.name,
                     research_date,
-                    institution_count: item.org_num.and_then(|s| s.parse().ok()).unwrap_or(0),
+                    institution_count: item.visit_total.or(item.org_num).unwrap_or(0),
                     institutions: item.org_name.unwrap_or_default(),
                     research_type: item.receive_way.unwrap_or_default(),
                     researchers: item.receptionist,
@@ -840,20 +934,28 @@ impl ResearchReportSource for EastMoneySource {
     async fn get_research_reports(
         &self,
         stock_code: Option<&str>,
+        page: u32,
         limit: Option<usize>,
     ) -> DataResult<Vec<ResearchReportData>> {
         let url = "https://reportapi.eastmoney.com/report/list";
-        let code = stock_code.unwrap_or("*");
-        let params = [
-            ("industryCode", code),
-            ("pageNo", "1"),
-            ("pageSize", &limit.unwrap_or(50).to_string()),
+        let page_size = limit.unwrap_or(50).to_string();
+        let page_no = page.max(1).to_string();
+        let shared = [
+            ("pageNo", page_no.as_str()),
+            ("pageSize", page_size.as_str()),
             ("qType", "0"),
             ("beginTime", "2020-01-01"),
             ("endTime", "2030-12-31"),
             ("sortColumn", "publishDate"),
             ("sortType", "-1"),
         ];
+        let filter = match stock_code {
+            Some(code) => ("code", code),
+            None => ("industryCode", "*"),
+        };
+        let params: Vec<(&str, &str)> = std::iter::once(filter)
+            .chain(shared)
+            .collect();
 
         debug!("Fetching research reports");
 
@@ -907,11 +1009,22 @@ impl ResearchReportSource for EastMoneySource {
 #[async_trait]
 impl ValuationSource for EastMoneySource {
     async fn get_valuation(&self, stock_code: &str) -> DataResult<StockValuation> {
-        let secid = Exchange::eastmoney_secid(stock_code);
+        let secid = Exchange::infer_eastmoney_secid(stock_code);
+        self.fetch_valuation(stock_code, &secid).await
+    }
 
-        let url = "https://push2.eastmoney.com/api/qt/stock/get";
+    async fn get_valuation_symbol(&self, symbol: &StockCode) -> DataResult<StockValuation> {
+        let secid = symbol.exchange.eastmoney_secid(&symbol.stock_code);
+        self.fetch_valuation(symbol.stock_code.as_str(), &secid)
+            .await
+    }
+}
+
+impl EastMoneySource {
+    async fn fetch_valuation(&self, stock_code: &str, secid: &str) -> DataResult<StockValuation> {
+        let url = "https://push2delay.eastmoney.com/api/qt/stock/get";
         let params = [
-            ("secid", secid.as_str()),
+            ("secid", secid),
             (
                 "fields",
                 "f43,f57,f58,f116,f117,f162,f163,f167,f168,f164,f165,f166,f173,f183,f184,f185,f186,f187",

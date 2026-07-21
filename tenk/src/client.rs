@@ -1,4 +1,4 @@
-//! Data client with multi-source fallback.
+//! Data client with multi-source dispatch.
 
 use std::sync::Arc;
 
@@ -13,16 +13,20 @@ use crate::data::{
     InstitutionalResearchData, KLineType, LimitPoolItem, LimitPoolKind, MacroRecord,
     MarginTradingData, MarketData, MinuteData, NewsArticle, NewsCategory, NewsContent,
     OptionContract, OptionExchange, OrderBookData, ResearchReportData, StockCode,
-    StockConnectData, StockInfo, StockValuation, TickData, TopHolder,
+    StockConnectData, StockInfo, StockSearchHit, StockValuation, TickData, TopHolder, TvAssetFilter,
+    TvCalendarEvent, TvChartOptions, TvDrawing, TvHotlistKind, TvIndicatorMeta,
+    TvIndicatorSeries, TvIndicatorSpec, TvReplayResult, TvScreenerRequest, TvScreenerResult,
+    TvStrategyReport, TvSymbolMatch, TvTechnicalAnalysis, TvAnalystData,
 };
 use crate::error::DataResult;
 use crate::traits::{
     BillboardSource, BlockTradeSource, BoardMarketSource, BondInfoSource, BondMarketSource,
-    CapitalFlowSource, DividendSource, EarningsForecastSource, FinancialSource,
-    FundInfoSource, FundMarketSource, FuturesSource, GlobalMarketSource, HoldingsSource,
-    IndexMarketSource, InstitutionalResearchSource, IPOSource, LimitPoolSource, MacroSource,
-    MarginTradingSource, NewsSource, OptionsSource, ResearchReportSource, StockConnectSource,
-    StockInfoSource, StockMarketSource, ValuationSource,
+    CapitalFlowSource, DividendSource, EarningsForecastSource, EconomicCalendarSource,
+    FinancialSource, FundInfoSource, FundMarketSource, FuturesSource, GlobalMarketSource,
+    HoldingsSource, IndexMarketSource, InstitutionalResearchSource, IPOSource, LimitPoolSource,
+    MacroSource, MarginTradingSource, NewsSource, OptionsSource, ResearchReportSource,
+    ScreenerSource, StockConnectSource, StockInfoSource, StockMarketSource, StudySource,
+    SymbolSearchSource, TechnicalAnalysisSource, AnalystSource, ValuationSource,
 };
 
 macro_rules! add_source {
@@ -39,13 +43,17 @@ macro_rules! try_sources_vec {
         use $crate::error::DataError;
         use tracing::{debug, info, warn};
 
+        let multi_source = $sources.len() > 1;
+
         if $sources.is_empty() {
-            Err(DataError::custom($msg))
+            Err(DataError::not_supported($msg))
         } else {
             for $src in $sources.iter() {
                 debug!("Trying source: {}", $src.name());
                 if !$src.is_available().await {
-                    continue;
+                    if multi_source {
+                        continue;
+                    }
                 }
                 match $call.await {
                     Ok(data) if !data.is_empty() => {
@@ -56,12 +64,18 @@ macro_rules! try_sources_vec {
                         );
                         return Ok(data);
                     }
-                    Ok(_) => {}
+                    Ok(_) if multi_source => continue,
+                    Ok(_) => return Err(DataError::NoDataAvailable),
                     Err(error) => {
                         warn!("Source {} failed: {}", $src.name(), error);
-                        if !error.is_recoverable() {
-                            return Err(error);
+                        if multi_source {
+                            match &error {
+                                DataError::NotSupported(_) => continue,
+                                e if e.is_recoverable() => continue,
+                                _ => return Err(error),
+                            }
                         }
+                        return Err(error);
                     }
                 }
             }
@@ -74,17 +88,29 @@ macro_rules! try_sources_one {
     ($sources:expr, $msg:expr, |$src:ident| $call:expr) => {{
         use $crate::error::DataError;
 
+        let multi_source = $sources.len() > 1;
+
         if $sources.is_empty() {
-            Err(DataError::custom($msg))
+            Err(DataError::not_supported($msg))
         } else {
             for $src in $sources.iter() {
                 if !$src.is_available().await {
-                    continue;
+                    if multi_source {
+                        continue;
+                    }
                 }
                 match $call.await {
                     Ok(data) => return Ok(data),
-                    Err(error) if error.is_recoverable() => continue,
-                    Err(error) => return Err(error),
+                    Err(error) => {
+                        if multi_source {
+                            match &error {
+                                DataError::NotSupported(_) => continue,
+                                e if e.is_recoverable() => continue,
+                                _ => return Err(error),
+                            }
+                        }
+                        return Err(error);
+                    }
                 }
             }
             Err(DataError::NoDataAvailable)
@@ -121,6 +147,12 @@ pub struct DataClient {
     futures_sources: Vec<Arc<dyn FuturesSource>>,
     options_sources: Vec<Arc<dyn OptionsSource>>,
     financial_sources: Vec<Arc<dyn FinancialSource>>,
+    technical_analysis_sources: Vec<Arc<dyn TechnicalAnalysisSource>>,
+    analyst_sources: Vec<Arc<dyn AnalystSource>>,
+    symbol_search_sources: Vec<Arc<dyn SymbolSearchSource>>,
+    screener_sources: Vec<Arc<dyn ScreenerSource>>,
+    calendar_sources: Vec<Arc<dyn EconomicCalendarSource>>,
+    study_sources: Vec<Arc<dyn StudySource>>,
 }
 
 impl DataClient {
@@ -153,7 +185,71 @@ impl DataClient {
             futures_sources: Vec::new(),
             options_sources: Vec::new(),
             financial_sources: Vec::new(),
+            technical_analysis_sources: Vec::new(),
+            analyst_sources: Vec::new(),
+            symbol_search_sources: Vec::new(),
+            screener_sources: Vec::new(),
+            calendar_sources: Vec::new(),
+            study_sources: Vec::new(),
         }
+    }
+
+    pub fn with_technical_analysis_source<S: TechnicalAnalysisSource + 'static>(
+        self,
+        source: S,
+    ) -> Self {
+        add_source!(self, technical_analysis_sources, source)
+    }
+
+    pub fn with_analyst_source<S: AnalystSource + 'static>(self, source: S) -> Self {
+        add_source!(self, analyst_sources, source)
+    }
+
+    pub fn with_symbol_search_source<S: SymbolSearchSource + 'static>(self, source: S) -> Self {
+        add_source!(self, symbol_search_sources, source)
+    }
+
+    pub fn with_screener_source<S: ScreenerSource + 'static>(self, source: S) -> Self {
+        add_source!(self, screener_sources, source)
+    }
+
+    pub fn with_calendar_source<S: EconomicCalendarSource + 'static>(self, source: S) -> Self {
+        add_source!(self, calendar_sources, source)
+    }
+
+    pub fn with_study_source<S: StudySource + 'static>(self, source: S) -> Self {
+        add_source!(self, study_sources, source)
+    }
+
+    pub fn with_tradingview_capabilities<S>(mut self, source: S) -> Self
+    where
+        S: StockMarketSource
+            + FundMarketSource
+            + IndexMarketSource
+            + GlobalMarketSource
+            + FuturesSource
+            + TechnicalAnalysisSource
+            + AnalystSource
+            + SymbolSearchSource
+            + ScreenerSource
+            + EconomicCalendarSource
+            + StudySource
+            + NewsSource
+            + Clone
+            + 'static,
+    {
+        self = self.with_market_source(source.clone());
+        self = self.with_fund_market_source(source.clone());
+        self = self.with_index_source(source.clone());
+        self = self.with_global_source(source.clone());
+        self = self.with_futures_source(source.clone());
+        self = self.with_technical_analysis_source(source.clone());
+        self = self.with_analyst_source(source.clone());
+        self = self.with_symbol_search_source(source.clone());
+        self = self.with_screener_source(source.clone());
+        self = self.with_calendar_source(source.clone());
+        self = self.with_news_source(source.clone());
+        self.with_study_source(source)
     }
 
     pub fn with_market_source<S: StockMarketSource + 'static>(self, source: S) -> Self {
@@ -356,9 +452,28 @@ impl DataClient {
         end_date: Option<&str>,
         k_type: KLineType,
     ) -> DataResult<Vec<MarketData>> {
-        info!("Fetching market data for {} ({k_type:?})", stock_code);
+        self.get_market_for(
+            &StockCode::with_inferred_exchange(stock_code),
+            start_date,
+            end_date,
+            k_type,
+        )
+        .await
+    }
+
+    pub async fn get_market_for(
+        &self,
+        symbol: &StockCode,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        k_type: KLineType,
+    ) -> DataResult<Vec<MarketData>> {
+        info!(
+            "Fetching market data for {} ({k_type:?})",
+            symbol.stock_code
+        );
         try_sources_vec!(self.market_sources, "No market sources configured", |source| {
-            source.get_market(stock_code, start_date, end_date, k_type)
+            source.get_market_symbol(symbol, start_date, end_date, k_type)
         })
     }
 
@@ -366,22 +481,61 @@ impl DataClient {
         &self,
         stock_codes: &[&str],
     ) -> DataResult<Vec<CurrentMarketData>> {
-        if stock_codes.is_empty() {
+        let symbols: Vec<StockCode> = stock_codes
+            .iter()
+            .map(|code| StockCode::with_inferred_exchange(*code))
+            .collect();
+        self.get_market_current_for(&symbols).await
+    }
+
+    pub async fn get_market_current_for(
+        &self,
+        symbols: &[StockCode],
+    ) -> DataResult<Vec<CurrentMarketData>> {
+        if symbols.is_empty() {
             return Ok(Vec::new());
         }
-        try_sources_vec!(
-            &self.market_sources,
-            "No market sources configured",
-            |source| source.get_market_current(stock_codes)
-        )
+        info!("Fetching market quotes for {} symbols", symbols.len());
+        try_sources_vec!(self.market_sources, "No market sources configured", |source| {
+            source.get_market_current_symbols(symbols)
+        })
     }
 
     pub async fn get_market_min(&self, stock_code: &str) -> DataResult<Vec<MinuteData>> {
+        self.get_market_min_for(&StockCode::with_inferred_exchange(stock_code))
+            .await
+    }
+
+    pub async fn get_market_min_for(&self, symbol: &StockCode) -> DataResult<Vec<MinuteData>> {
         try_sources_vec!(
             &self.market_sources,
             "No market sources configured",
-            |source| source.get_market_min(stock_code)
+            |source| source.get_market_min_symbol(symbol)
         )
+    }
+
+    pub async fn get_market_min_days(&self, stock_code: &str, ndays: u32) -> DataResult<Vec<MinuteData>> {
+        self.get_market_min_days_for(&StockCode::with_inferred_exchange(stock_code), ndays)
+            .await
+    }
+
+    pub async fn get_market_min_days_for(
+        &self,
+        symbol: &StockCode,
+        ndays: u32,
+    ) -> DataResult<Vec<MinuteData>> {
+        if ndays <= 1 {
+            return self.get_market_min_for(symbol).await;
+        }
+        let result: DataResult<Vec<MinuteData>> = try_sources_vec!(
+            &self.market_sources,
+            "No market sources configured",
+            |source| source.get_market_min_days_symbol(symbol, ndays)
+        );
+        match result {
+            Ok(data) if !data.is_empty() => Ok(data),
+            _ => self.get_market_min_for(symbol).await,
+        }
     }
 
     pub async fn get_order_book(&self, stock_code: &str) -> DataResult<OrderBookData> {
@@ -414,6 +568,40 @@ impl DataClient {
             "No info sources configured",
             |source| source.get_stock_info(stock_code)
         )
+    }
+
+    pub async fn search_stocks(&self, keyword: &str, limit: usize) -> DataResult<Vec<StockSearchHit>> {
+        use crate::error::DataError;
+        use tracing::{debug, info, warn};
+
+        if self.info_sources.is_empty() {
+            return Err(DataError::not_supported("No info sources configured"));
+        }
+
+        for source in self.info_sources.iter() {
+            debug!("Trying source for search: {}", source.name());
+            match source.search_stocks(keyword, limit).await {
+                Ok(data) if !data.is_empty() => {
+                    info!(
+                        "Successfully fetched {} search hits from {}",
+                        data.len(),
+                        source.name()
+                    );
+                    return Ok(data);
+                }
+                Ok(_) => continue,
+                Err(error) => {
+                    warn!("Source {} search failed: {}", source.name(), error);
+                    match &error {
+                        DataError::NotSupported(_) => continue,
+                        e if e.is_recoverable() => continue,
+                        _ => return Err(error),
+                    }
+                }
+            }
+        }
+
+        Err(DataError::NoDataAvailable)
     }
 
     pub async fn get_all_etf_codes(&self, limit: Option<usize>) -> DataResult<Vec<ETFCode>> {
@@ -485,11 +673,13 @@ impl DataClient {
         page: u32,
         limit: u32,
     ) -> DataResult<Vec<NewsArticle>> {
-        try_sources_vec!(
+        let mut articles = try_sources_vec!(
             &self.news_sources,
             "No news sources configured",
             |source| source.get_news(category, page, limit)
-        )
+        )?;
+        crate::data::sort_news_by_time_desc(&mut articles);
+        Ok(articles)
     }
 
     pub async fn search_news(
@@ -498,10 +688,46 @@ impl DataClient {
         page: u32,
         limit: u32,
     ) -> DataResult<Vec<NewsArticle>> {
-        try_sources_vec!(
+        let mut articles = try_sources_vec!(
             &self.news_sources,
             "No news sources configured",
             |source| source.search_news(keyword, page, limit)
+        )?;
+        crate::data::sort_news_by_time_desc(&mut articles);
+        Ok(articles)
+    }
+
+    pub async fn search_news_for_symbol(
+        &self,
+        symbol: &StockCode,
+        page: u32,
+        limit: u32,
+    ) -> DataResult<Vec<NewsArticle>> {
+        if symbol.stock_code.is_empty() && symbol.short_name.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut articles = try_sources_vec!(
+            &self.news_sources,
+            "No news sources configured",
+            |source| source.search_news_for_symbol(symbol, page, limit)
+        )?;
+        crate::data::sort_news_by_time_desc(&mut articles);
+        Ok(articles)
+    }
+
+    pub async fn get_valuation(&self, stock_code: &str) -> DataResult<StockValuation> {
+        self.get_valuation_for(&StockCode::with_inferred_exchange(stock_code))
+            .await
+    }
+
+    pub async fn get_valuation_for(&self, symbol: &StockCode) -> DataResult<StockValuation> {
+        if !symbol.supports_valuation() {
+            return Err(crate::error::DataError::not_supported("valuation"));
+        }
+        try_sources_one!(
+            &self.valuation_sources,
+            "No valuation sources configured",
+            |source| source.get_valuation_symbol(symbol)
         )
     }
 
@@ -610,32 +836,26 @@ impl DataClient {
 
     pub async fn get_institutional_research(
         &self,
+        page: u32,
         limit: Option<usize>,
     ) -> DataResult<Vec<InstitutionalResearchData>> {
         try_sources_vec!(
             &self.institutional_research_sources,
             "No institutional research sources configured",
-            |source| source.get_institutional_research(limit)
+            |source| source.get_institutional_research(page, limit)
         )
     }
 
     pub async fn get_research_reports(
         &self,
         stock_code: Option<&str>,
+        page: u32,
         limit: Option<usize>,
     ) -> DataResult<Vec<ResearchReportData>> {
         try_sources_vec!(
             &self.research_report_sources,
             "No research report sources configured",
-            |source| source.get_research_reports(stock_code, limit)
-        )
-    }
-
-    pub async fn get_valuation(&self, stock_code: &str) -> DataResult<StockValuation> {
-        try_sources_one!(
-            &self.valuation_sources,
-            "No valuation sources configured",
-            |source| source.get_valuation(stock_code)
+            |source| source.get_research_reports(stock_code, page, limit)
         )
     }
 
@@ -988,6 +1208,146 @@ impl DataClient {
             |source| source.get_financial_statement(stock_code, kind, limit)
         )
     }
+
+    pub async fn get_technical_analysis(&self, symbol: &str) -> DataResult<TvTechnicalAnalysis> {
+        try_sources_one!(
+            &self.technical_analysis_sources,
+            "No technical analysis sources configured",
+            |source| source.get_technical_analysis(symbol)
+        )
+    }
+
+    pub async fn get_analyst(&self, symbol: &str) -> DataResult<TvAnalystData> {
+        try_sources_one!(
+            &self.analyst_sources,
+            "No analyst sources configured",
+            |source| source.get_analyst(symbol)
+        )
+    }
+
+    pub async fn search_symbols(
+        &self,
+        query: &str,
+        filter: Option<TvAssetFilter>,
+        offset: u32,
+    ) -> DataResult<Vec<TvSymbolMatch>> {
+        try_sources_vec!(
+            &self.symbol_search_sources,
+            "No symbol search sources configured",
+            |source| source.search_symbols(query, filter, offset)
+        )
+    }
+
+    pub async fn run_screener(&self, request: &TvScreenerRequest) -> DataResult<TvScreenerResult> {
+        try_sources_one!(
+            &self.screener_sources,
+            "No screener sources configured",
+            |source| source.run_screener(request)
+        )
+    }
+
+    pub async fn get_hotlist(
+        &self,
+        market: &str,
+        kind: TvHotlistKind,
+        limit: usize,
+    ) -> DataResult<TvScreenerResult> {
+        try_sources_one!(
+            &self.screener_sources,
+            "No screener sources configured",
+            |source| source.get_hotlist(market, kind, limit)
+        )
+    }
+
+    pub async fn get_economic_calendar(
+        &self,
+        from: &str,
+        to: &str,
+        countries: &str,
+    ) -> DataResult<Vec<TvCalendarEvent>> {
+        let from = crate::util::normalize_date_bound(Some(from), from);
+        let to = crate::util::normalize_date_bound(Some(to), to);
+        try_sources_vec!(
+            &self.calendar_sources,
+            "No economic calendar sources configured",
+            |source| source.get_economic_calendar(&from, &to, countries)
+        )
+    }
+
+    pub async fn search_indicators(&self, query: &str) -> DataResult<Vec<TvIndicatorMeta>> {
+        try_sources_vec!(
+            &self.study_sources,
+            "No study sources configured",
+            |source| source.search_indicators(query)
+        )
+    }
+
+    pub async fn get_indicator_spec(
+        &self,
+        id: &str,
+        version: &str,
+    ) -> DataResult<TvIndicatorSpec> {
+        try_sources_one!(
+            &self.study_sources,
+            "No study sources configured",
+            |source| source.get_indicator_spec(id, version)
+        )
+    }
+
+    pub async fn get_indicator_series(
+        &self,
+        symbol: &str,
+        id: &str,
+        version: &str,
+        options: &TvChartOptions,
+    ) -> DataResult<TvIndicatorSeries> {
+        try_sources_one!(
+            &self.study_sources,
+            "No study sources configured",
+            |source| source.get_indicator_series(symbol, id, version, options)
+        )
+    }
+
+    pub async fn get_strategy_report(
+        &self,
+        symbol: &str,
+        id: &str,
+        version: &str,
+        options: &TvChartOptions,
+    ) -> DataResult<TvStrategyReport> {
+        try_sources_one!(
+            &self.study_sources,
+            "No study sources configured",
+            |source| source.get_strategy_report(symbol, id, version, options)
+        )
+    }
+
+    pub async fn get_chart_replay(
+        &self,
+        symbol: &str,
+        replay_from: i64,
+        steps: u32,
+        options: &TvChartOptions,
+    ) -> DataResult<TvReplayResult> {
+        try_sources_one!(
+            &self.study_sources,
+            "No study sources configured",
+            |source| source.get_chart_replay(symbol, replay_from, steps, options)
+        )
+    }
+
+    pub async fn get_chart_drawings(
+        &self,
+        layout: &str,
+        symbol: &str,
+        user_id: i64,
+    ) -> DataResult<Vec<TvDrawing>> {
+        try_sources_one!(
+            &self.study_sources,
+            "No study sources configured",
+            |source| source.get_chart_drawings(layout, symbol, user_id)
+        )
+    }
 }
 
 impl Default for DataClient {
@@ -1234,6 +1594,54 @@ mod tests {
     async fn test_market_no_sources_configured() {
         let client = DataClient::new();
         let err = client.get_market_current(&["600519"]).await.unwrap_err();
-        assert!(matches!(err, DataError::Custom(_)));
+        assert!(matches!(err, DataError::NotSupported(_)));
+    }
+
+    #[tokio::test]
+    async fn test_single_source_not_supported_stops() {
+        #[derive(Clone)]
+        struct UnsupportedMarketSource;
+
+        #[async_trait]
+        impl DataSource for UnsupportedMarketSource {
+            fn name(&self) -> &'static str {
+                "unsupported"
+            }
+            fn priority(&self) -> u8 {
+                1
+            }
+        }
+
+        #[async_trait]
+        impl StockMarketSource for UnsupportedMarketSource {
+            async fn get_market(
+                &self,
+                _: &str,
+                _: Option<&str>,
+                _: Option<&str>,
+                _: KLineType,
+            ) -> DataResult<Vec<MarketData>> {
+                Err(DataError::not_supported("kline"))
+            }
+
+            async fn get_market_current(&self, _: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
+                Err(DataError::not_supported("quote"))
+            }
+
+            async fn get_market_min(&self, _: &str) -> DataResult<Vec<MinuteData>> {
+                Err(DataError::not_supported("minute"))
+            }
+        }
+
+        #[async_trait]
+        impl StockInfoSource for UnsupportedMarketSource {
+            async fn get_all_codes(&self, _: Option<usize>) -> DataResult<Vec<StockCode>> {
+                Ok(vec![])
+            }
+        }
+
+        let client = DataClient::new().with_source(UnsupportedMarketSource);
+        let err = client.get_market_current(&["600519"]).await.unwrap_err();
+        assert!(matches!(err, DataError::NotSupported(_)));
     }
 }

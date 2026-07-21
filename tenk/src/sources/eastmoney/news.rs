@@ -5,7 +5,8 @@ use serde::Deserialize;
 use tracing::debug;
 
 use crate::data::{
-    NewsArticle, NewsCategory, NewsContent,
+    Exchange, NewsArticle, NewsCategory, NewsContent, StockCode, filter_news_for_symbol,
+    sort_news_by_time_desc,
 };
 use crate::error::DataResult;
 use crate::traits::NewsSource;
@@ -212,7 +213,7 @@ impl NewsSource for EastMoneySource {
             "param": {
                 "cmsArticleWebOld": {
                     "searchScope": "default",
-                    "sort": "default",
+                    "sort": "time",
                     "pageIndex": page,
                     "pageSize": limit,
                     "preTag": "",
@@ -308,6 +309,56 @@ impl NewsSource for EastMoneySource {
             });
         }
 
+        Ok(articles)
+    }
+
+    async fn search_news_for_symbol(
+        &self,
+        symbol: &StockCode,
+        page: u32,
+        limit: u32,
+    ) -> DataResult<Vec<NewsArticle>> {
+        use std::collections::HashSet;
+
+        let mut articles = Vec::new();
+        let mut seen = HashSet::new();
+
+        if !symbol.short_name.is_empty() {
+            let batch = self.search_news(&symbol.short_name, page, limit).await?;
+            for article in batch {
+                if seen.insert(article.id.clone()) {
+                    articles.push(article);
+                }
+            }
+        }
+
+        if articles.len() < limit as usize && !symbol.stock_code.is_empty() {
+            let fetch_limit = limit.saturating_mul(3).max(limit).min(100);
+            let batch = self
+                .search_news(&symbol.stock_code, page, fetch_limit)
+                .await?;
+            for article in filter_news_for_symbol(&batch, symbol) {
+                if seen.insert(article.id.clone()) {
+                    articles.push(article);
+                }
+            }
+        }
+
+        if articles.len() < limit as usize
+            && symbol.exchange != Exchange::Unknown
+            && !symbol.stock_code.is_empty()
+        {
+            let tagged = format!("{}.{}", symbol.stock_code, symbol.exchange);
+            let batch = self.search_news(&tagged, page, limit).await?;
+            for article in batch {
+                if seen.insert(article.id.clone()) {
+                    articles.push(article);
+                }
+            }
+        }
+
+        articles.truncate(limit as usize);
+        sort_news_by_time_desc(&mut articles);
         Ok(articles)
     }
 }

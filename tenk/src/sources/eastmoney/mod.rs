@@ -6,6 +6,9 @@ mod news;
 mod extended;
 mod market_extra;
 mod derivatives;
+mod search;
+
+use std::time::Duration;
 
 use chrono::FixedOffset;
 use serde::Deserialize;
@@ -16,6 +19,7 @@ use crate::request::{RequestConfig, RequestManager};
 #[derive(Debug, Clone)]
 pub struct EastMoneySource {
     request: RequestManager,
+    history_request: RequestManager,
 }
 
 impl EastMoneySource {
@@ -24,12 +28,44 @@ impl EastMoneySource {
     }
 
     pub fn try_new(proxy: Option<&str>) -> DataResult<Self> {
-        let config = RequestConfig::default().with_proxy_opt(proxy);
-        Ok(Self::with_request_manager(RequestManager::new(config)?))
+        use reqwest::header::{HeaderMap, HeaderValue, REFERER, USER_AGENT};
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            REFERER,
+            HeaderValue::from_static("https://quote.eastmoney.com/"),
+        );
+        headers.insert(
+            USER_AGENT,
+            HeaderValue::from_static(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            ),
+        );
+        let config = RequestConfig::default()
+            .with_proxy_opt(proxy)
+            .with_headers(headers.clone());
+        let request = RequestManager::new(config)?;
+        let history_config = RequestConfig::default()
+            .with_proxy_opt(proxy)
+            .with_headers(headers)
+            .with_retries(1)
+            .with_timeout(Duration::from_secs(8));
+        let history_request = RequestManager::new(history_config)?;
+        Ok(Self {
+            request,
+            history_request,
+        })
     }
 
     pub fn with_request_manager(request: RequestManager) -> Self {
-        Self { request }
+        let mut history_config = request.config().clone();
+        history_config.max_retries = 1;
+        history_config.timeout = Duration::from_secs(8);
+        Self {
+            history_request: RequestManager::new(history_config)
+                .expect("Failed to create East Money history request manager"),
+            request,
+        }
     }
 }
 
@@ -39,8 +75,104 @@ impl Default for EastMoneySource {
     }
 }
 
+const CLIST_URL: &str = "https://push2delay.eastmoney.com/api/qt/clist/get";
+const KLINE_URL: &str = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
+const KLINE_FALLBACK_URL: &str = "https://push2delay.eastmoney.com/api/qt/stock/kline/get";
+
+impl EastMoneySource {
+    pub(crate) async fn fetch_kline_lines(
+        &self,
+        params: &[(&str, &str)],
+    ) -> DataResult<Vec<String>> {
+        for url in [KLINE_URL, KLINE_FALLBACK_URL] {
+            let response: KLineResponse = match self.request.get_json_with_params(url, params).await {
+                Ok(response) => response,
+                Err(_) => continue,
+            };
+            let klines = response
+                .data
+                .and_then(|data| data.klines)
+                .unwrap_or_default();
+            if !klines.is_empty() {
+                return Ok(klines);
+            }
+        }
+
+        Ok(Vec::new())
+    }
+}
+
 fn beijing_tz() -> FixedOffset {
     FixedOffset::east_opt(8 * 3600).unwrap()
+}
+
+pub(crate) fn deserialize_opt_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct OptF64Visitor;
+
+    impl<'de> Visitor<'de> for OptF64Visitor {
+        type Value = Option<f64>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("null, string, or number")
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.parse().ok())
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.parse().ok())
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(value as f64))
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(value as f64))
+        }
+
+        fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(value))
+        }
+    }
+
+    deserializer.deserialize_any(OptF64Visitor)
 }
 
 #[derive(Debug, Deserialize)]
@@ -265,5 +397,20 @@ mod tests {
     fn test_eastmoney_default() {
         let source = EastMoneySource::default();
         assert_eq!(source.name(), "eastmoney");
+    }
+
+    #[test]
+    fn test_deserialize_opt_f64() {
+        #[derive(Deserialize)]
+        struct Row {
+            #[serde(default, deserialize_with = "deserialize_opt_f64")]
+            value: Option<f64>,
+        }
+
+        let missing: Row = serde_json::from_str(r#"{"value":"-"}"#).unwrap();
+        assert!(missing.value.is_none());
+
+        let present: Row = serde_json::from_str(r#"{"value":1.23}"#).unwrap();
+        assert_eq!(present.value, Some(1.23));
     }
 }

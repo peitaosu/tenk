@@ -36,7 +36,7 @@ CLI 字符串解析：`KLineType::from_name("weekly")`。
 | `USMarket` | 105 |
 | `Global` | 111 |
 | `Domestic` | 106 |
-| `Industry` | 115 |
+| `Industry` | 110 |
 
 解析：`NewsCategory::from_name("company")` 或按栏目代码。
 
@@ -91,6 +91,27 @@ CLI 字符串解析：`KLineType::from_name("weekly")`。
 ### 扩展行情
 
 `CapitalFlowData`、`CapitalFlowHistory`、`BillboardItem`、`BillboardDetail`、`EarningsForecast`、`StockConnectData`、`MarginTradingData`、`IPOData`、`BlockTradeData`、`InstitutionalResearchData`、`ResearchReportData`。
+
+### TradingView analytics
+
+| 类型 | 用途 |
+|------|------|
+| `TvTechnicalAnalysis` | 各周期技术分析共识 |
+| `TvAnalystData` | 分析师评级、目标价、预测、可选历史预估 |
+| `TvAnalystRatings` | 买入 / 卖出 / 持有等计数 |
+| `TvAnalystPriceTargets` | 平均、最高、最低、中位目标价 |
+| `TvAnalystForecasts` | 下一财年 EPS / 营收预测 |
+| `TvAnalystEstimates` | 季度与年度预估序列 |
+| `TvEstimateSeries` / `TvEstimatePoint` | 历史预估点 |
+| `TvSymbolMatch` | Symbol 搜索结果 |
+| `TvScreenerResult` | 筛选器 / 热榜行 |
+| `TvCalendarEvent` | 经济日历条目 |
+| `TvIndicatorMeta` / `TvIndicatorSpec` / `TvIndicatorSeries` | 内置指标元数据与序列 |
+| `TvStrategyReport` | 策略回测输出 |
+| `TvReplayResult` | K 线回放结果 |
+| `TvDrawing` | 图表 drawing |
+| `TvUserSession` | 登录 session cookies 与 auth token |
+| `TvPinePermUser` | 邀请制脚本 ACL 条目 |
 
 ### 板块
 

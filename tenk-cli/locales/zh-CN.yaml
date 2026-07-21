@@ -17,6 +17,7 @@ headers:
   avg_price: "均价"
   direction: "方向"
   exchange: "交易所"
+  market: "市场"
   nav: "净值"
   # 市场数据表头
   main_net: "主力净额"
@@ -146,3 +147,78 @@ trade:
 units:
   yi: "亿"
   wan: "万"
+
+# TUI
+tui:
+  panels:
+    watchlist: "自选"
+    quote: "行情 / 详情"
+    kline: "K 线"
+  feeds:
+    symbol_news: "新闻"
+    research: "研报"
+    market_stock: "市场"
+    market_finance: "财经"
+    market_company: "公司"
+    market_us: "美股"
+    market_global: "全球"
+    market_domestic: "国内"
+    market_industry: "产经"
+    institutional: "机构调研"
+    ta: "技术分析"
+    analyst: "分析师"
+    analyst_ratings: "评级"
+    analyst_target: "目标价"
+  status:
+    loading: "加载中…"
+    live: "实时 3s"
+    unknown_cmd: "未知命令"
+    symbol_format: "请使用 CODE:EXCHANGE（如 600519:SH）"
+  dialog:
+    news: "新闻"
+    research: "研究报告"
+    no_report_body: "API 暂不提供研报全文。"
+  quote:
+    field: "字段"
+    value: "值"
+    pre_close: "昨收"
+  kline:
+    timeline: "分时"
+    five_days: "5日"
+    chart: "K线"
+    table: "表格"
+  search:
+    title: "搜索"
+    empty: "输入代码、名称或拼音首字母"
+    loading: "搜索中..."
+  analysis:
+    ta: "技术分析 (TradingView)"
+    ta_unavailable: "技术分析不可用（TradingView / 代理）"
+    analyst: "分析师 (TradingView)"
+    analyst_unavailable: "分析师数据不可用（TradingView / 代理）"
+    reports: "研报 (EastMoney / Sina / THS)"
+  labels:
+    analysts: "分析师"
+  help_title: "帮助"
+  help: |
+    Tab/1-N  切换面板
+    j/k      滚动
+    Enter    选择 / 打开对话框
+    t        周期：单日 → 5日 → 日/周/月/… → 60分
+    ←/→      K 线模式 / 资讯翻页
+    v        K 线模式（同 →）
+    /        搜索股票（Enter 添加）
+    d        删除自选（自选面板）
+    r        刷新
+    :        命令行
+    ?        帮助
+    Esc      关闭
+    q        退出
+  hints:
+    watchlist: "j/k · / 搜索 · d 删除 · Enter · Tab"
+    quote: "j/k 滚动 · Tab"
+    kline: "j/k 滚动 · ←/→ 模式 · t 周期 · v · r"
+    feed: "j/k · ←/→ · Enter 阅读 · r · Tab"
+    dialog: "j/k 滚动 · Esc 关闭"
+    search: "j/k · Enter 添加 · Esc 关闭"
+    help: "Esc 关闭"

@@ -11,10 +11,11 @@ Multi-source market data library and CLI for Chinese stocks, ETFs, and bonds.
 | Doc | Description |
 |-----|-------------|
 | [Architecture](docs/architecture.md) | Workspace layout, modules, request flow |
-| [Library](docs/library.md) | `ClientBuilder`, `DataClient`, fallback behavior |
-| [Data Sources](docs/sources.md) | EastMoney, Sina, THS — capability matrix |
+| [Library](docs/library.md) | `ClientBuilder`, `DataClient`, API reference |
+| [Data Sources](docs/sources.md) | EastMoney, Sina, THS, TradingView — capability matrix |
 | [Data Types](docs/data-types.md) | Core enums and structs |
 | [CLI](docs/cli.md) | Command-line interface |
+| [TUI](docs/tui.md) | Terminal UI (default) |
 | [MCP Server](docs/mcp.md) | Model Context Protocol integration |
 | [Development](docs/development.md) | Build, test, examples |
 
@@ -50,6 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **CLI**
 
 ```bash
+tenk
 tenk stock quote 600519
 tenk stock kline 600519 -l 10
 tenk etf quote 510300

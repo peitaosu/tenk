@@ -124,13 +124,13 @@ impl EastMoneySource {
         let mut results = Vec::with_capacity(codes.len());
 
         for code in codes {
-            let secid = Exchange::eastmoney_secid(code);
+            let secid = Exchange::infer_eastmoney_secid(code);
             let params = [
                 ("secid", secid.as_str()),
                 ("fields", "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170"),
             ];
 
-            let url = "https://push2.eastmoney.com/api/qt/stock/get";
+            let url = "https://push2delay.eastmoney.com/api/qt/stock/get";
             debug!("Fetching bond quote for {}", code);
 
             #[derive(Deserialize)]
@@ -194,7 +194,7 @@ impl EastMoneySource {
 
     /// Fetches all bond data with pagination.
     async fn get_all_bond_current(&self) -> DataResult<Vec<BondCurrentData>> {
-        let url = "https://push2.eastmoney.com/api/qt/clist/get";
+        let url = "https://push2delay.eastmoney.com/api/qt/clist/get";
         let mut all_bonds = Vec::new();
         let page_size = 100;
         let mut page = 1;

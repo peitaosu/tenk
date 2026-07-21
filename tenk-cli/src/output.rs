@@ -46,6 +46,19 @@ pub fn print_output<T: Serialize + TableRow>(data: &[T], config: &OutputConfig) 
     }
 }
 
+/// Prints any serializable value as JSON (or to file).
+pub fn print_json_value<T: Serialize>(data: &T, config: &OutputConfig) {
+    if let Some(ref path) = config.file {
+        if let Err(e) = write_single_to_file(data, config.format, path) {
+            eprintln!("{}: {}", t!("messages.file_write_error").red(), e);
+        }
+        return;
+    }
+    if let Ok(json) = serde_json::to_string_pretty(data) {
+        println!("{json}");
+    }
+}
+
 /// Prints formatted output for a single item.
 pub fn print_single<T: Serialize + SingleDisplay>(data: &T, config: &OutputConfig) {
     if let Some(ref path) = config.file {

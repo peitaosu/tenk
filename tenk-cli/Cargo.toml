@@ -31,3 +31,6 @@ rmcp.workspace = true
 schemars.workspace = true
 rust-i18n.workspace = true
 unicode-width.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+chandelier.workspace = true

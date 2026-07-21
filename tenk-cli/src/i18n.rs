@@ -18,19 +18,41 @@ pub fn pad_display_width(s: &str, width: usize) -> String {
 
 /// Initialize i18n with the specified language.
 pub fn init(cli_lang: &str) {
+    rust_i18n::set_locale(&resolve_language(cli_lang));
+}
+
+fn resolve_language(cli_lang: &str) -> String {
     let lang = if cli_lang != "en" {
         cli_lang.to_string()
     } else {
         std::env::var("TENK_LANG").unwrap_or_else(|_| "en".to_string())
     };
 
-    let lang = if SUPPORTED_LANGUAGES.contains(&lang.as_str()) {
+    if SUPPORTED_LANGUAGES.contains(&lang.as_str()) {
         lang
     } else {
         "en".to_string()
-    };
+    }
+}
 
-    rust_i18n::set_locale(&lang);
+pub fn format_amount_compact(amount: f64) -> String {
+    if amount >= 100_000_000.0 {
+        format!("{:.2}{}", amount / 100_000_000.0, t!("units.yi"))
+    } else if amount >= 10_000.0 {
+        format!("{:.2}{}", amount / 10_000.0, t!("units.wan"))
+    } else {
+        format!("{:.2}", amount)
+    }
+}
+
+pub fn format_volume_compact(vol: u64) -> String {
+    if vol >= 100_000_000 {
+        format!("{:.2}{}", vol as f64 / 100_000_000.0, t!("units.yi"))
+    } else if vol >= 10_000 {
+        format!("{:.2}{}", vol as f64 / 10_000.0, t!("units.wan"))
+    } else {
+        format!("{}", vol)
+    }
 }
 
 /// Format volume with localized unit suffix.
@@ -106,17 +128,16 @@ mod tests {
     }
 
     #[test]
-    fn test_init_locale_selection() {
-        init("zh-CN");
-        assert_eq!(rust_i18n::locale().to_string(), "zh-CN");
-
-        init("fr");
-        assert_eq!(rust_i18n::locale().to_string(), "en");
-
+    fn test_resolve_language() {
+        assert_eq!(resolve_language("zh-CN"), "zh-CN");
+        assert_eq!(resolve_language("fr"), "en");
         unsafe {
-            std::env::set_var("TENK_LANG", "en");
+            std::env::set_var("TENK_LANG", "zh-CN");
         }
-        init("en");
-        assert_eq!(rust_i18n::locale().to_string(), "en");
+        assert_eq!(resolve_language("en"), "zh-CN");
+        unsafe {
+            std::env::remove_var("TENK_LANG");
+        }
+        assert_eq!(resolve_language("en"), "en");
     }
 }

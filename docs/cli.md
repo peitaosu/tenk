@@ -2,39 +2,51 @@
 
 Binary name: `tenk`. Built from the `tenk-cli` crate.
 
+**Default:** `tenk` with no subcommand launches the [TUI](tui.md). Subcommands and `--mcp` behave as before.
+
 ## Global flags
 
 | Flag | Description |
 |------|-------------|
 | `-f, --format` | `table` (default), `json`, `csv` |
 | `-o, --output` | Write to file |
-| `-s, --source` | `eastmoney`, `sina`, `ths` (repeatable, default: all) |
+| `-s, --source` | `eastmoney`, `sina`, `ths`, `tradingview` (repeatable; default: all four) |
 | `-L, --lang` | `en` (default), `zh-CN` |
 | `--proxy` | HTTP proxy URL |
 | `-v, --verbose` | Debug logging |
 | `--mcp` | Run as MCP server |
 
-Language fallback: when `-L en`, the `TENK_LANG` environment variable is used if set.
+`-L en`: reads `TENK_LANG` env when set.
 
 ## Commands
 
 ```
-tenk stock     quote | kline | minute | orderbook | ticks | info | valuation | holders | funds | dividend | list
+tenk stock     quote | kline | minute | orderbook | ticks | info | valuation | holders | funds | dividend | list | search | ta | analyst
 tenk etf       quote | kline | minute | list
 tenk bond      quote | list
-tenk market    flow | flow-history | billboard | billboard-detail | forecast | connect | margin | ipo | block | research | report
+tenk market    flow | flow-history | billboard | billboard-detail | forecast | connect | margin | ipo | block | research | report | screener | hotlist | indicator-search | indicator | indicator-series | strategy | replay | drawings
 tenk news      list | search | read
 tenk index     list | quote | kline
 tenk board     list | kline | members | crosswalk | resolve
 tenk futures   list | quote | kline
 tenk options   list | quote
 tenk financial statement
-tenk macro     cpi | gdp
+tenk macro     cpi | gdp | calendar
 tenk global    hk | us
 tenk pool      limit
 ```
 
-Extended commands (index, board, futures, options, financial, macro, global, pool) require EastMoney in `--source` unless noted; Sina covers index quotes and futures quotes; THS covers board list/K-line/members.
+Source map:
+
+| Commands | Source |
+|----------|--------|
+| `news list/read/search` | EastMoney, Sina, THS, TV |
+| `market research`, `market forecast` | EastMoney |
+| `market report` | EastMoney, Sina, THS |
+| `stock search`, `stock ta`, `stock analyst`, `market screener/hotlist/indicator*/strategy/replay/drawings`, `macro calendar` | TV (`--proxy …` for WS) |
+| `index`, `board`, `pool`, `financial`, `macro cpi/gdp` | EastMoney |
+| Index/futures quotes | Sina |
+| Boards | THS |
 
 ## Examples
 
@@ -52,6 +64,7 @@ tenk macro cpi -l 12
 tenk global hk 00700
 tenk pool limit -t limit-up -l 20
 tenk news search 茅台 -l 5
+tenk stock analyst 600519 --proxy http://127.0.0.1:7890
 tenk -s eastmoney stock quote 600519
 ```
 

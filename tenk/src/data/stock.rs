@@ -1,5 +1,7 @@
 //! Stock data structures.
 
+use std::str::FromStr;
+
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, EnumString, VariantNames};
@@ -13,6 +15,10 @@ pub enum Exchange {
     SZ,
     /// Beijing Stock Exchange
     BJ,
+    /// Hong Kong Stock Exchange
+    HK,
+    /// US markets
+    US,
     /// Unknown exchange
     Unknown,
 }
@@ -42,18 +48,47 @@ impl Exchange {
             Exchange::SH => "sh",
             Exchange::SZ => "sz",
             Exchange::BJ => "bj",
+            Exchange::HK => "hk",
+            Exchange::US => "",
             Exchange::Unknown => "",
         }
     }
 
-    /// Converts a stock code to EastMoney secid format.
-    pub fn eastmoney_secid(stock_code: &str) -> String {
-        let prefix = if stock_code.starts_with('6') || stock_code.starts_with('5') {
-            "1"
-        } else {
-            "0"
-        };
-        format!("{prefix}.{stock_code}")
+    /// Converts a stock code to EastMoney secid using inferred A-share exchange.
+    pub fn infer_eastmoney_secid(stock_code: &str) -> String {
+        Self::from_stock_code(stock_code).eastmoney_secid(stock_code)
+    }
+
+    pub fn eastmoney_secid(&self, stock_code: &str) -> String {
+        match self {
+            Exchange::SH => format!("1.{stock_code}"),
+            Exchange::SZ | Exchange::BJ => format!("0.{stock_code}"),
+            Exchange::HK => format!("116.{stock_code}"),
+            Exchange::US => format!("105.{stock_code}"),
+            Exchange::Unknown => {
+                let prefix = if stock_code.starts_with('6') || stock_code.starts_with('5') {
+                    "1"
+                } else {
+                    "0"
+                };
+                format!("{prefix}.{stock_code}")
+            }
+        }
+    }
+}
+
+impl FromStr for Exchange {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_uppercase().as_str() {
+            "SH" => Ok(Exchange::SH),
+            "SZ" => Ok(Exchange::SZ),
+            "BJ" => Ok(Exchange::BJ),
+            "HK" => Ok(Exchange::HK),
+            "US" => Ok(Exchange::US),
+            _ => Err(()),
+        }
     }
 }
 
@@ -63,6 +98,8 @@ impl std::fmt::Display for Exchange {
             Exchange::SH => write!(f, "SH"),
             Exchange::SZ => write!(f, "SZ"),
             Exchange::BJ => write!(f, "BJ"),
+            Exchange::HK => write!(f, "HK"),
+            Exchange::US => write!(f, "US"),
             Exchange::Unknown => write!(f, "Unknown"),
         }
     }
@@ -159,9 +196,73 @@ impl StockCode {
         }
     }
 
+    pub fn with_inferred_exchange(stock_code: impl Into<String>) -> Self {
+        let stock_code = stock_code.into();
+        Self::new(
+            stock_code.clone(),
+            String::new(),
+            Exchange::from_stock_code(&stock_code),
+        )
+    }
+
     /// Returns the full symbol with exchange prefix.
     pub fn full_symbol(&self) -> String {
         format!("{}{}", self.exchange.market_prefix(), self.stock_code)
+    }
+
+    pub fn tv_symbol(&self) -> String {
+        match self.exchange {
+            Exchange::SH => format!("SSE:{}", self.stock_code),
+            Exchange::SZ => format!("SZSE:{}", self.stock_code),
+            Exchange::BJ => format!("BSE:{}", self.stock_code),
+            Exchange::HK => {
+                let trimmed = self.stock_code.trim_start_matches('0');
+                if trimmed.is_empty() {
+                    format!("HKEX:{}", self.stock_code)
+                } else {
+                    format!("HKEX:{trimmed}")
+                }
+            }
+            Exchange::US => format!("NASDAQ:{}", self.stock_code),
+            Exchange::Unknown => self.stock_code.clone(),
+        }
+    }
+
+    pub fn supports_valuation(&self) -> bool {
+        matches!(self.exchange, Exchange::SH | Exchange::SZ | Exchange::BJ)
+    }
+
+    pub fn news_search_keywords(&self) -> Vec<String> {
+        let mut keywords = Vec::new();
+        if !self.short_name.is_empty() {
+            keywords.push(self.short_name.clone());
+        }
+        if !self.stock_code.is_empty() {
+            keywords.push(self.stock_code.clone());
+        }
+        if self.exchange != Exchange::Unknown && !self.stock_code.is_empty() {
+            keywords.push(format!("{}.{}", self.stock_code, self.exchange));
+        }
+        keywords
+    }
+}
+
+/// Stock search result from keyword lookup.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StockSearchHit {
+    pub stock_code: String,
+    pub short_name: String,
+    pub exchange: Exchange,
+    pub market: String,
+}
+
+impl StockSearchHit {
+    pub fn to_stock_code(&self) -> StockCode {
+        StockCode::new(
+            self.stock_code.clone(),
+            self.short_name.clone(),
+            self.exchange,
+        )
     }
 }
 
@@ -705,9 +806,10 @@ mod tests {
 
     #[test]
     fn test_eastmoney_secid() {
-        assert_eq!(Exchange::eastmoney_secid("600519"), "1.600519");
-        assert_eq!(Exchange::eastmoney_secid("300059"), "0.300059");
-        assert_eq!(Exchange::eastmoney_secid("510300"), "1.510300");
+        assert_eq!(Exchange::infer_eastmoney_secid("600519"), "1.600519");
+        assert_eq!(Exchange::infer_eastmoney_secid("300059"), "0.300059");
+        assert_eq!(Exchange::infer_eastmoney_secid("510300"), "1.510300");
+        assert_eq!(Exchange::HK.eastmoney_secid("06869"), "116.06869");
     }
 
     #[test]

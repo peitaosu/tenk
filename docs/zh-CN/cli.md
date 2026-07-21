@@ -2,39 +2,49 @@
 
 二进制名：`tenk`，由 `tenk-cli` crate 构建。
 
+**默认：** 无子命令运行 `tenk` 启动 [TUI](tui.md)。子命令与 `--mcp` 不变。
+
 ## 全局参数
 
 | 参数 | 说明 |
 |------|------|
 | `-f, --format` | `table`（默认）、`json`、`csv` |
 | `-o, --output` | 输出到文件 |
-| `-s, --source` | `eastmoney`、`sina`、`ths`（可重复，默认全部） |
+| `-s, --source` | `eastmoney`、`sina`、`ths`、`tradingview`（可重复；默认四项全开） |
 | `-L, --lang` | `en`（默认）、`zh-CN` |
 | `--proxy` | HTTP 代理 URL |
 | `-v, --verbose` | 调试日志 |
 | `--mcp` | 以 MCP 服务模式运行 |
 
-语言回退：`-L en` 时若设置了 `TENK_LANG` 环境变量则使用该值。
+`-L en`：若设置 `TENK_LANG` 则使用该值。
 
 ## 命令
 
 ```
-tenk stock     quote | kline | minute | orderbook | ticks | info | valuation | holders | funds | dividend | list
+tenk stock     quote | kline | minute | orderbook | ticks | info | valuation | holders | funds | dividend | list | search | ta | analyst
 tenk etf       quote | kline | minute | list
 tenk bond      quote | list
-tenk market    flow | flow-history | billboard | billboard-detail | forecast | connect | margin | ipo | block | research | report
+tenk market    flow | flow-history | billboard | billboard-detail | forecast | connect | margin | ipo | block | research | report | screener | hotlist | indicator-search | indicator | indicator-series | strategy | replay | drawings
 tenk news      list | search | read
 tenk index     list | quote | kline
 tenk board     list | kline | members | crosswalk | resolve
 tenk futures   list | quote | kline
 tenk options   list | quote
 tenk financial statement
-tenk macro     cpi | gdp
+tenk macro     cpi | gdp | calendar
 tenk global    hk | us
 tenk pool      limit
 ```
 
-扩展命令（index、board、futures 等）通常需要 EastMoney；新浪提供指数/期货行情；同花顺提供板块列表、K 线、成分股。
+| 命令 | Source |
+|------|--------|
+| `news list/read/search` | EastMoney、Sina、THS、TV |
+| `market research`、`market forecast` | EastMoney |
+| `market report` | EastMoney、Sina、THS |
+| `stock search`、`stock ta`、`stock analyst`、`market screener/hotlist/indicator*/strategy/replay/drawings`、`macro calendar` | TV（WS 需 `--proxy …`） |
+| `index`、`board`、`pool`、`financial`、`macro cpi/gdp` | EastMoney |
+| 指数/期货行情 | Sina |
+| 板块 | THS |
 
 ## 示例
 

@@ -3,7 +3,7 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
 use tracing::debug;
 
-use super::EastMoneySource;
+use super::{deserialize_opt_f64, EastMoneySource};
 use crate::data::{
     DerivativesExchange, DerivativesQuote, FinancialRecord, FinancialReportKind, FuturesContract,
     KLineType, MarketData, OptionContract, OptionExchange,
@@ -20,7 +20,7 @@ impl EastMoneySource {
         fs: &str,
         limit: Option<usize>,
     ) -> DataResult<Vec<(String, String, String, i64)>> {
-        let url = "https://push2.eastmoney.com/api/qt/clist/get";
+        let url = super::CLIST_URL;
         let mut items = Vec::new();
         let page_size = 100;
         let mut page = 1u32;
@@ -88,7 +88,7 @@ impl EastMoneySource {
                 ("fields", "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170,f109"),
                 ("ut", "fa5fd1943c7b386f172d6893dbfba10b"),
             ];
-            let url = "https://push2.eastmoney.com/api/qt/stock/get";
+            let url = "https://push2delay.eastmoney.com/api/qt/stock/get";
             #[derive(Deserialize)]
             struct Resp {
                 data: Option<Row>,
@@ -173,17 +173,7 @@ impl EastMoneySource {
             ("beg", &start),
             ("end", &end),
         ];
-        let url = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
-        #[derive(Deserialize)]
-        struct KResp {
-            data: Option<KData>,
-        }
-        #[derive(Deserialize)]
-        struct KData {
-            klines: Option<Vec<String>>,
-        }
-        let response: KResp = self.request.get_json_with_params(url, &params).await?;
-        let klines = response.data.and_then(|d| d.klines).unwrap_or_default();
+        let klines = self.fetch_kline_lines(&params).await?;
         let mut result = Vec::with_capacity(klines.len());
         for line in klines {
             let parts: Vec<&str> = line.split(',').collect();
@@ -264,7 +254,7 @@ impl OptionsSource for EastMoneySource {
         exchange: OptionExchange,
         limit: Option<usize>,
     ) -> DataResult<Vec<OptionContract>> {
-        let url = "https://31.push2.eastmoney.com/api/qt/clist/get";
+        let url = super::CLIST_URL;
         let page_size = limit.unwrap_or(500).min(500);
         let params = [
             ("pn", "1".to_string()),
@@ -291,9 +281,9 @@ impl OptionsSource for EastMoneySource {
             code: String,
             #[serde(rename = "f14")]
             name: String,
-            #[serde(rename = "f2", default)]
+            #[serde(rename = "f2", default, deserialize_with = "deserialize_opt_f64")]
             price: Option<f64>,
-            #[serde(rename = "f3", default)]
+            #[serde(rename = "f3", default, deserialize_with = "deserialize_opt_f64")]
             change_pct: Option<f64>,
         }
         let response: Resp = self.request.get_json_with_params(url, &params).await?;

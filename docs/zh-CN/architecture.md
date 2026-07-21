@@ -14,7 +14,7 @@ tenk-cli/             # 二进制：CLI + MCP 服务
 | 模块 | 职责 |
 |------|------|
 | `builder` | `ClientBuilder`、`SourceKind` — 默认数据源装配 |
-| `client` | `DataClient` — 统一 API，多源回退 |
+| `client` | `DataClient` — 统一 API，按优先级多源 |
 | `data` | 领域类型：stock、fund、bond、news、related |
 | `traits` | 数据源 trait 定义 |
 | `sources` | 数据源实现 |
@@ -32,6 +32,7 @@ tenk-cli/             # 二进制：CLI + MCP 服务
 | `output` | 表格、JSON、CSV 输出 |
 | `i18n` | 语言选择（`en`、`zh-CN`） |
 | `mcp` | MCP 服务与工具处理器 |
+| `tui` | 终端界面（无子命令时默认） |
 
 ## 请求流程
 
@@ -43,16 +44,49 @@ tenk-cli/             # 二进制：CLI + MCP 服务
         │
         ▼
    try_sources_* 宏
-   （按优先级、跳过不可用源、
-    可恢复错误则换源重试）
+   （按优先级、跳过不可用源）
         │
         ▼
    Source trait 实现
-   （EastMoney / Sina / THS）
+   （EastMoney / Sina / THS / TradingView）
         │
         ▼
    RequestManager → HTTP API
+   TradingView WS → 行情 / K 线 / 指标
 ```
+
+## TradingView 目录结构
+
+优先级 4。包含于 `SourceKind::DEFAULT`。
+
+```
+sources/tradingview/
+  mod.rs       # TradingViewSource（REST + WS）
+  rest.rs      # 搜索、技术分析、筛选、日历、指标元数据、分析师快照
+  ws.rs        # 实时行情、K 线、指标序列、策略、回放、分析师预估
+  market.rs    # 股票 / 基金 / 指数 / 全球 / 期货 trait
+  study.rs     # 技术分析、搜索、筛选、日历、Study trait
+  analyst.rs   # AnalystSource（scanner + WS 预估）
+  pine_perm.rs # 邀请制 Pine 脚本 ACL
+  convert.rs   # TV 类型 → 领域类型
+  protocol.rs  # WebSocket 协议
+  symbol.rs    # 代码映射
+```
+
+`ClientBuilder` → `with_tradingview_capabilities()`：
+
+| Trait | CLI / 库入口 |
+|-------|--------------|
+| `StockMarketSource` | `tenk stock quote/kline/minute` |
+| `GlobalMarketSource` | `tenk global hk/us` |
+| `TechnicalAnalysisSource` | `tenk stock ta` |
+| `AnalystSource` | `tenk stock analyst` |
+| `SymbolSearchSource` | `tenk stock search` |
+| `ScreenerSource` | `tenk market screener/hotlist` |
+| `EconomicCalendarSource` | `tenk macro calendar` |
+| `StudySource` | `tenk market indicator*/strategy/replay/drawings` |
+
+环境变量：`TENK_TV_SESSION`、`TENK_TV_SIGNATURE`、`TENK_TV_AUTH_TOKEN`。Session cookies 经 homepage 解析 WS token（含 geo 重定向）。代理：`--proxy`、`TENK_PROXY`。
 
 ## EastMoney 目录结构
 
@@ -67,7 +101,6 @@ sources/eastmoney/
 
 ## 设计原则
 
-- **Trait 化数据源** — 各 provider 实现独立 trait，无单体接口。
-- **回退链** — `DataClient` 按优先级依次尝试已配置数据源。
-- **可恢复错误** — 网络、解析、限流等错误触发换源；配置与非法输入错误立即返回。
-- **Builder 默认值** — `ClientBuilder` 为每个 provider 注册对应 trait，调用方通常无需手动装配。
+- 各 provider 实现独立 trait
+- 按 `priority()` 多源调度
+- 默认 `SourceKind::DEFAULT`（四个 provider）；MCP 使用 `SourceKind::ALL`

@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use super::html::{extract_balanced_div, html_to_text};
+
 pub fn normalize_board_name(name: &str) -> String {
     let mut normalized = name.trim().to_string();
     for suffix in ["板块", "概念", "指数", "Ⅲ", "III", "行业"] {
@@ -73,19 +75,29 @@ pub fn parse_ths_concept_board_section(html: &str) -> Vec<(String, String, f64, 
 
 pub fn extract_ths_news_content(html: &str) -> Option<(String, String)> {
     let marker = "class=\"news-content-parsed\"";
-    let start = html.find(marker)?;
-    let fragment = &html[start..];
-    let open = fragment.find('>')? + 1;
-    let close = fragment[open..].find("</div>")? + open;
-    let body_html = fragment[open..close].trim().to_string();
+    let body_html = extract_balanced_div(html, marker)?;
     if body_html.is_empty() {
         return None;
     }
-    let body_text = html2text::from_read(body_html.as_bytes(), usize::MAX)
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    let body_text = html_to_text(&body_html);
     Some((body_html, body_text))
+}
+
+fn strip_ths_page_title_suffix(title: &str) -> String {
+    let title = title.trim();
+    const SITE_SUFFIXES: &[&str] = &["_同花顺财经", "_同花顺", "_10jqka", "_股票", "_财经"];
+    for suffix in SITE_SUFFIXES {
+        if let Some(stripped) = title.strip_suffix(suffix) {
+            return stripped.trim().to_string();
+        }
+    }
+    if let Some((head, tail)) = title.rsplit_once('_') {
+        const SITE_PARTS: &[&str] = &["同花顺", "10jqka", "财经", "股票"];
+        if SITE_PARTS.iter().any(|part| tail.contains(part)) {
+            return head.trim().to_string();
+        }
+    }
+    title.to_string()
 }
 
 pub fn extract_ths_news_title(html: &str) -> Option<String> {
@@ -107,12 +119,7 @@ pub fn extract_ths_news_title(html: &str) -> Option<String> {
     if let Some(start) = html.find("<title>") {
         let inner = &html[start + 7..];
         if let Some(end) = inner.find("</title>") {
-            let title = inner[..end]
-                .split('_')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
+            let title = strip_ths_page_title_suffix(&strip_html_tags(&inner[..end]));
             if !title.is_empty() {
                 return Some(title);
             }
@@ -182,6 +189,13 @@ mod tests {
         assert_eq!(boards[0].0, "885333");
         assert_eq!(boards[0].1, "移动支付");
         assert!((boards[0].2 + 3.67).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_extract_ths_news_title_preserves_underscores() {
+        let html = r#"<title>Company_A announces deal_同花顺财经</title>"#;
+        let title = extract_ths_news_title(html).unwrap();
+        assert_eq!(title, "Company_A announces deal");
     }
 
     #[test]

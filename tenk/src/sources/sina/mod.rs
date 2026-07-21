@@ -1,5 +1,8 @@
 //! Sina Finance data source.
 
+mod news;
+mod reports;
+
 use async_trait::async_trait;
 use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, HOST, HeaderMap, HeaderValue, REFERER, USER_AGENT};
 use serde::Deserialize;
@@ -25,10 +28,9 @@ use crate::traits::{
 /// Sina Finance data source.
 #[derive(Debug, Clone)]
 pub struct SinaSource {
-    /// HTTP request manager
     request: RequestManager,
-    /// VIP API request manager
     vip_request: RequestManager,
+    finance_request: RequestManager,
 }
 
 impl SinaSource {
@@ -61,17 +63,39 @@ impl SinaSource {
             .with_proxy_opt(proxy);
         let vip_config = RequestConfig::default().with_proxy_opt(proxy);
 
+        let mut finance_headers = HeaderMap::new();
+        finance_headers.insert(
+            REFERER,
+            HeaderValue::from_static("https://finance.sina.com.cn/"),
+        );
+        finance_headers.insert(
+            USER_AGENT,
+            HeaderValue::from_static(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/110.0",
+            ),
+        );
+        finance_headers.insert(ACCEPT, HeaderValue::from_static("*/*"));
+        let finance_config = RequestConfig::default()
+            .with_headers(finance_headers)
+            .with_proxy_opt(proxy);
+
         Ok(Self {
             request: RequestManager::new(hq_config)?,
             vip_request: RequestManager::new(vip_config)?,
+            finance_request: RequestManager::new(finance_config)?,
         })
     }
 
     pub fn with_request_manager(request: RequestManager) -> Self {
         Self {
             request: request.clone(),
-            vip_request: request,
+            vip_request: request.clone(),
+            finance_request: request,
         }
+    }
+
+    pub(crate) fn finance_request(&self) -> &RequestManager {
+        &self.finance_request
     }
 
     async fn decode_hq_text(response: reqwest::Response) -> DataResult<String> {
@@ -88,6 +112,8 @@ impl SinaSource {
             Exchange::SH => "sh",
             Exchange::SZ => "sz",
             Exchange::BJ => "bj",
+            Exchange::HK => "hk",
+            Exchange::US => "",
             Exchange::Unknown => "sh",
         }
     }
@@ -975,11 +1001,7 @@ impl SinaSource {
             let items: Vec<SinaBondItem> = match serde_json::from_str(&text) {
                 Ok(items) => items,
                 Err(e) => {
-                    warn!(
-                        "Failed to parse bond response: {} (text starts with: {})",
-                        e,
-                        text.chars().take(100).collect::<String>()
-                    );
+                    warn!("Failed to parse bond response: {}", e);
                     break;
                 }
             };

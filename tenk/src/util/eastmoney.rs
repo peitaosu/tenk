@@ -1,6 +1,36 @@
-use chrono::{NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 
 use crate::data::{OrderBookData, TickData};
+
+fn cn_market_tz() -> FixedOffset {
+    FixedOffset::east_opt(8 * 3600).unwrap()
+}
+
+pub fn parse_cn_market_time(time_str: &str, fallback_date: NaiveDate) -> DateTime<Utc> {
+    let naive = if time_str.contains(' ') {
+        NaiveDateTime::parse_from_str(time_str, "%Y-%m-%d %H:%M")
+    } else {
+        NaiveTime::parse_from_str(time_str, "%H:%M")
+            .map(|time| fallback_date.and_time(time))
+    };
+
+    match naive {
+        Ok(value) => cn_market_tz()
+            .from_local_datetime(&value)
+            .single()
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(Utc::now),
+        Err(_) => Utc::now(),
+    }
+}
+
+pub fn cn_market_date(trade_time: DateTime<Utc>) -> NaiveDate {
+    trade_time.with_timezone(&cn_market_tz()).date_naive()
+}
+
+pub fn format_cn_market_time(trade_time: DateTime<Utc>, fmt: &str) -> String {
+    trade_time.with_timezone(&cn_market_tz()).format(fmt).to_string()
+}
 
 pub fn parse_order_book_from_fields(
     stock_code: &str,
@@ -83,6 +113,13 @@ pub fn parse_tick_details(stock_code: &str, details: &[String]) -> Vec<TickData>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn test_parse_cn_market_time() {
+        let dt = parse_cn_market_time("2026-07-20 09:30", NaiveDate::from_ymd_opt(2026, 7, 20).unwrap());
+        assert_eq!(format_cn_market_time(dt, "%H:%M"), "09:30");
+    }
 
     #[test]
     fn test_parse_order_book_from_fields() {

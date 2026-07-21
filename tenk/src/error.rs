@@ -84,14 +84,13 @@ impl DataError {
         DataError::InvalidDate(message.into())
     }
 
-    /// Returns true if should try next source.
+    /// Returns true if another configured source may be tried.
     pub fn is_recoverable(&self) -> bool {
         matches!(
             self,
             DataError::Network(_)
                 | DataError::SourceUnavailable(_)
                 | DataError::RateLimitExceeded(_)
-                | DataError::NotSupported(_)
                 | DataError::Parse(_)
         )
     }
@@ -119,7 +118,7 @@ mod tests {
         assert!(!err.is_recoverable());
 
         let err = DataError::not_supported("feature");
-        assert!(err.is_recoverable());
+        assert!(!err.is_recoverable());
 
         let err = DataError::invalid_stock_code("000");
         assert!(!err.is_recoverable());

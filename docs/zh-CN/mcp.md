@@ -28,6 +28,8 @@ stdio 传输。服务名：`tenk-mcp`。版本取自 crate 元数据。
 | 变量 | 说明 |
 |------|------|
 | `TENK_PROXY` | 底层 `DataClient` 的 HTTP 代理 |
+| `TENK_TV_SESSION`、`TENK_TV_SIGNATURE` | `market_drawings` 所需的 session cookies |
+| `TENK_TV_AUTH_TOKEN` | 可选 WS auth token 覆盖 |
 
 ## 实现
 
@@ -92,5 +94,17 @@ stdio 传输。服务名：`tenk-mcp`。版本取自 crate 元数据。
 | `global_hk` | 港股行情 |
 | `global_us` | 美股行情 |
 | `limit_pool` | 涨跌停池 |
+| `stock_search` | 全球 Symbol 搜索 |
+| `stock_ta` | 技术分析共识 |
+| `stock_analyst` | 分析师评级、目标价、预测 |
+| `market_screener` | 市场筛选器 |
+| `market_hotlist` | 市场热榜 |
+| `macro_calendar` | 经济日历 |
+| `market_indicator_search` | 内置指标搜索 |
+| `market_indicator` | 指标 spec |
+| `market_indicator_series` | 指标序列 |
+| `market_strategy` | 策略回测 |
+| `market_replay` | K 线回放 |
+| `market_drawings` | 图表 drawings |
 
 工具参数通过 `schemars` 生成 JSON Schema，供 MCP 发现。

@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "   {:10} {:15} {:>10.2} {:>9.2}%↑ {:>12}",
             bond.bond_code,
-            truncate_str(&bond.bond_name, 13),
+            bond.bond_name,
             bond.price,
             bond.change_pct,
             format_volume(bond.volume)
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "   {:10} {:15} {:>10.2} {:>9.2}%↓ {:>12}",
             bond.bond_code,
-            truncate_str(&bond.bond_name, 13),
+            bond.bond_name,
             bond.price,
             bond.change_pct.abs(),
             format_volume(bond.volume)
@@ -78,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "   {:10} {:15} {:>10.2} {:>9.2}%{} {:>15.2}",
             bond.bond_code,
-            truncate_str(&bond.bond_name, 13),
+            bond.bond_name,
             bond.price,
             bond.change_pct.abs(),
             arrow,
@@ -120,14 +120,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\nDone!");
     Ok(())
-}
-
-fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.chars().count() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", s.chars().take(max_len - 3).collect::<String>())
-    }
 }
 
 fn format_volume(vol: u64) -> String {

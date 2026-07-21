@@ -10,7 +10,7 @@ use crate::data::{
     InstitutionalResearchData, KLineType, LimitPoolItem, LimitPoolKind, MacroRecord,
     MarginTradingData, MarketData, MinuteData, NewsArticle, NewsCategory, NewsContent,
     OptionContract, OptionExchange, OrderBookData, ResearchReportData, StockCode,
-    StockConnectData, StockInfo, StockValuation, TickData, TopHolder,
+    StockConnectData, StockInfo, StockSearchHit, StockValuation, TickData, TopHolder,
 };
 use crate::error::DataResult;
 
@@ -42,8 +42,46 @@ pub trait StockMarketSource: DataSource {
     /// Fetches real-time market quotes.
     async fn get_market_current(&self, stock_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>>;
 
+    async fn get_market_current_symbols(&self, symbols: &[StockCode]) -> DataResult<Vec<CurrentMarketData>> {
+        let refs: Vec<&str> = symbols.iter().map(|s| s.stock_code.as_str()).collect();
+        self.get_market_current(&refs).await
+    }
+
     /// Fetches intraday minute-level data.
     async fn get_market_min(&self, stock_code: &str) -> DataResult<Vec<MinuteData>>;
+
+    async fn get_market_symbol(
+        &self,
+        symbol: &StockCode,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        k_type: KLineType,
+    ) -> DataResult<Vec<MarketData>> {
+        self.get_market(&symbol.stock_code, start_date, end_date, k_type)
+            .await
+    }
+
+    async fn get_market_min_symbol(&self, symbol: &StockCode) -> DataResult<Vec<MinuteData>> {
+        self.get_market_min(&symbol.stock_code).await
+    }
+
+    async fn get_market_min_days_symbol(
+        &self,
+        symbol: &StockCode,
+        ndays: u32,
+    ) -> DataResult<Vec<MinuteData>> {
+        self.get_market_min_days(&symbol.stock_code, ndays).await
+    }
+
+    /// Fetches intraday minute-level data for multiple trading days.
+    async fn get_market_min_days(&self, stock_code: &str, ndays: u32) -> DataResult<Vec<MinuteData>> {
+        if ndays <= 1 {
+            self.get_market_min(stock_code).await
+        } else {
+            let _ = (stock_code, ndays);
+            Err(crate::error::DataError::not_supported("get_market_min_days"))
+        }
+    }
 
     /// Fetches order book data.
     async fn get_order_book(&self, stock_code: &str) -> DataResult<OrderBookData> {
@@ -68,6 +106,12 @@ pub trait StockInfoSource: DataSource {
     async fn get_stock_info(&self, stock_code: &str) -> DataResult<StockInfo> {
         let _ = stock_code;
         Err(crate::error::DataError::not_supported("get_stock_info"))
+    }
+
+    /// Searches stocks by code, name, or pinyin initials.
+    async fn search_stocks(&self, keyword: &str, limit: usize) -> DataResult<Vec<StockSearchHit>> {
+        let _ = (keyword, limit);
+        Err(crate::error::DataError::not_supported("search_stocks"))
     }
 }
 
@@ -156,6 +200,16 @@ pub trait NewsSource: DataSource {
         let _ = (keyword, page, limit);
         Err(crate::error::DataError::not_supported("search_news"))
     }
+
+    async fn search_news_for_symbol(
+        &self,
+        symbol: &StockCode,
+        page: u32,
+        limit: u32,
+    ) -> DataResult<Vec<NewsArticle>> {
+        let _ = (symbol, page, limit);
+        Err(crate::error::DataError::not_supported("search_news_for_symbol"))
+    }
 }
 
 /// Capital flow data source.
@@ -236,6 +290,7 @@ pub trait InstitutionalResearchSource: DataSource {
     /// Get institutional research list.
     async fn get_institutional_research(
         &self,
+        page: u32,
         limit: Option<usize>,
     ) -> DataResult<Vec<InstitutionalResearchData>>;
 }
@@ -247,6 +302,7 @@ pub trait ResearchReportSource: DataSource {
     async fn get_research_reports(
         &self,
         stock_code: Option<&str>,
+        page: u32,
         limit: Option<usize>,
     ) -> DataResult<Vec<ResearchReportData>>;
 }
@@ -256,6 +312,10 @@ pub trait ResearchReportSource: DataSource {
 pub trait ValuationSource: DataSource {
     /// Get stock valuation metrics.
     async fn get_valuation(&self, stock_code: &str) -> DataResult<StockValuation>;
+
+    async fn get_valuation_symbol(&self, symbol: &StockCode) -> DataResult<StockValuation> {
+        self.get_valuation(&symbol.stock_code).await
+    }
 }
 
 /// Stock holdings data source.
@@ -429,6 +489,99 @@ pub trait FinancialSource: DataSource {
         let _ = (stock_code, kind, limit);
         Err(crate::error::DataError::not_supported("get_financial_statement"))
     }
+}
+
+#[async_trait]
+pub trait TechnicalAnalysisSource: DataSource {
+    async fn get_technical_analysis(
+        &self,
+        symbol: &str,
+    ) -> DataResult<crate::data::TvTechnicalAnalysis>;
+}
+
+#[async_trait]
+pub trait AnalystSource: DataSource {
+    async fn get_analyst(&self, symbol: &str) -> DataResult<crate::data::TvAnalystData>;
+}
+
+#[async_trait]
+pub trait SymbolSearchSource: DataSource {
+    async fn search_symbols(
+        &self,
+        query: &str,
+        filter: Option<crate::data::TvAssetFilter>,
+        offset: u32,
+    ) -> DataResult<Vec<crate::data::TvSymbolMatch>>;
+}
+
+#[async_trait]
+pub trait ScreenerSource: DataSource {
+    async fn run_screener(
+        &self,
+        request: &crate::data::TvScreenerRequest,
+    ) -> DataResult<crate::data::TvScreenerResult>;
+
+    async fn get_hotlist(
+        &self,
+        market: &str,
+        kind: crate::data::TvHotlistKind,
+        limit: usize,
+    ) -> DataResult<crate::data::TvScreenerResult>;
+}
+
+#[async_trait]
+pub trait EconomicCalendarSource: DataSource {
+    async fn get_economic_calendar(
+        &self,
+        from: &str,
+        to: &str,
+        countries: &str,
+    ) -> DataResult<Vec<crate::data::TvCalendarEvent>>;
+}
+
+#[async_trait]
+pub trait StudySource: DataSource {
+    async fn search_indicators(
+        &self,
+        query: &str,
+    ) -> DataResult<Vec<crate::data::TvIndicatorMeta>>;
+
+    async fn get_indicator_spec(
+        &self,
+        id: &str,
+        version: &str,
+    ) -> DataResult<crate::data::TvIndicatorSpec>;
+
+    async fn get_indicator_series(
+        &self,
+        symbol: &str,
+        id: &str,
+        version: &str,
+        options: &crate::data::TvChartOptions,
+    ) -> DataResult<crate::data::TvIndicatorSeries>;
+
+    async fn get_strategy_report(
+        &self,
+        symbol: &str,
+        id: &str,
+        version: &str,
+        options: &crate::data::TvChartOptions,
+    ) -> DataResult<crate::data::TvStrategyReport>;
+
+    async fn get_chart_replay(
+        &self,
+        symbol: &str,
+        replay_from: i64,
+        steps: u32,
+        options: &crate::data::TvChartOptions,
+    ) -> DataResult<crate::data::TvReplayResult>;
+
+    async fn get_chart_drawings(
+        &self,
+        layout: &str,
+        symbol: &str,
+        user_id: i64,
+    ) -> DataResult<Vec<crate::data::TvDrawing>>;
 }
 
 #[cfg(test)]

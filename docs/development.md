@@ -21,7 +21,7 @@ cargo test -p tenk                # library only
 cargo test -p tenk-cli            # CLI only
 ```
 
-Tests cover parsers, enums, builder wiring, client fallback logic, and CLI formatting. Live API calls are not required for unit tests.
+Tests cover parsers, enums, builder wiring, client dispatch, and CLI formatting. Live API calls are not required for unit tests.
 
 ## Examples
 
@@ -37,7 +37,7 @@ cargo run --example bond_data
 ```
 tenk/src/
   builder.rs          ClientBuilder
-  client.rs           DataClient + fallback macros
+  client.rs           DataClient + try_sources macros
   traits.rs           Source trait definitions
   request.rs          HTTP layer
   error.rs            Error types
@@ -46,6 +46,7 @@ tenk/src/
     eastmoney/        EastMoney provider
     sina.rs           Sina provider
     ths.rs            THS provider
+    tradingview/      TradingView provider (pine_perm.rs, analyst.rs, …)
   util/               Shared helpers
 
 tenk-cli/src/

@@ -2,12 +2,20 @@
 
 use reqwest::header::HeaderMap;
 use reqwest::{Client, Response};
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, warn};
 
 use crate::error::{DataError, DataResult};
+
+static TLS_PROVIDER: Once = Once::new();
+
+fn ensure_tls_provider() {
+    TLS_PROVIDER.call_once(|| {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    });
+}
 
 /// HTTP request configuration.
 #[derive(Debug, Clone)]
@@ -31,7 +39,7 @@ pub struct RequestConfig {
 impl Default for RequestConfig {
     fn default() -> Self {
         Self {
-            max_retries: 3,
+            max_retries: 5,
             retry_wait_ms: 1500,
             request_wait_ms: None,
             timeout: Duration::from_secs(30),
@@ -110,6 +118,7 @@ pub struct RequestManager {
 impl RequestManager {
     /// Creates a new request manager with configuration.
     pub fn new(config: RequestConfig) -> DataResult<Self> {
+        ensure_tls_provider();
         let mut client_builder = Client::builder()
             .timeout(config.timeout)
             .user_agent(&config.user_agent)
@@ -120,6 +129,8 @@ impl RequestManager {
             let proxy = reqwest::Proxy::all(proxy_url)
                 .map_err(|e| DataError::Config(format!("Invalid proxy URL '{proxy_url}': {e}")))?;
             client_builder = client_builder.proxy(proxy);
+        } else {
+            client_builder = client_builder.no_proxy();
         }
 
         if let Some(headers) = &config.headers {
@@ -189,6 +200,68 @@ impl RequestManager {
         Ok(json)
     }
 
+    pub fn client(&self) -> &Client {
+        &self.client
+    }
+
+    pub async fn get_with_headers<T: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+        params: &[(&str, String)],
+        headers: Option<HeaderMap>,
+    ) -> DataResult<T> {
+        let response = self
+            .request_with_retry(|| {
+                let mut builder = self.client.get(url).query(params);
+                if let Some(headers) = &headers {
+                    builder = builder.headers(headers.clone());
+                }
+                builder
+            })
+            .await?;
+        Ok(response.json::<T>().await?)
+    }
+
+    pub async fn post_json_with_headers<T, B>(
+        &self,
+        url: &str,
+        body: &B,
+        headers: Option<HeaderMap>,
+    ) -> DataResult<T>
+    where
+        T: serde::de::DeserializeOwned,
+        B: serde::Serialize + ?Sized,
+    {
+        let response = self
+            .request_with_retry(|| {
+                let mut builder = self.client.post(url).json(body);
+                if let Some(headers) = &headers {
+                    builder = builder.headers(headers.clone());
+                }
+                builder
+            })
+            .await?;
+        Ok(response.json::<T>().await?)
+    }
+
+    pub async fn get_text_with_headers(
+        &self,
+        url: &str,
+        params: &[(&str, String)],
+        headers: Option<HeaderMap>,
+    ) -> DataResult<String> {
+        let response = self
+            .request_with_retry(|| {
+                let mut builder = self.client.get(url).query(params);
+                if let Some(headers) = &headers {
+                    builder = builder.headers(headers.clone());
+                }
+                builder
+            })
+            .await?;
+        Ok(response.text().await?)
+    }
+
     /// Performs a request with retry logic.
     async fn request_with_retry<F>(&self, builder: F) -> DataResult<Response>
     where
@@ -214,9 +287,10 @@ impl RequestManager {
                         return Ok(response);
                     }
 
-                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                        warn!("Rate limited, waiting before retry");
+                    if is_retryable_status(status) {
+                        warn!("Retryable HTTP status {}, waiting before retry", status);
                         sleep(Duration::from_millis(self.config.retry_wait_ms * 2)).await;
+                        last_error = Some(DataError::custom(format!("HTTP error: {status}")));
                         continue;
                     }
 
@@ -225,7 +299,11 @@ impl RequestManager {
                 }
                 Err(e) => {
                     warn!("Request error: {}", e);
+                    let retryable = is_retryable_error(&e);
                     last_error = Some(DataError::Network(e));
+                    if !retryable {
+                        break;
+                    }
                 }
             }
 
@@ -236,6 +314,22 @@ impl RequestManager {
 
         Err(last_error.unwrap_or_else(|| DataError::custom("Request failed after all retries")))
     }
+}
+
+fn is_retryable_status(status: reqwest::StatusCode) -> bool {
+    matches!(
+        status,
+        reqwest::StatusCode::TOO_MANY_REQUESTS
+            | reqwest::StatusCode::INTERNAL_SERVER_ERROR
+            | reqwest::StatusCode::BAD_GATEWAY
+            | reqwest::StatusCode::SERVICE_UNAVAILABLE
+            | reqwest::StatusCode::GATEWAY_TIMEOUT
+            | reqwest::StatusCode::REQUEST_TIMEOUT
+    )
+}
+
+fn is_retryable_error(error: &reqwest::Error) -> bool {
+    error.is_connect() || error.is_timeout() || error.is_request()
 }
 
 impl std::fmt::Debug for RequestManager {
@@ -269,6 +363,14 @@ mod tests {
 
         let without_proxy = RequestConfig::default().with_proxy_opt(None);
         assert!(without_proxy.proxy.is_none());
+    }
+
+    #[test]
+    fn test_is_retryable_status() {
+        assert!(is_retryable_status(reqwest::StatusCode::BAD_GATEWAY));
+        assert!(is_retryable_status(reqwest::StatusCode::SERVICE_UNAVAILABLE));
+        assert!(!is_retryable_status(reqwest::StatusCode::NOT_FOUND));
+        assert!(!is_retryable_status(reqwest::StatusCode::FORBIDDEN));
     }
 
     #[tokio::test]

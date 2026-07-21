@@ -1,6 +1,5 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
-use rust_i18n::t;
 use tenk::{DataClient, KLineType, SourceKind};
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -13,6 +12,8 @@ mod commands;
 mod i18n;
 mod mcp;
 mod output;
+mod tv_util;
+mod tui;
 
 use commands::{board, bond, etf, financial, futures, global, index, macro_data, market, news, options, pool, stock};
 use output::OutputFormat;
@@ -43,10 +44,10 @@ pub struct Cli {
     output_file: Option<String>,
 
     /// Data sources to use
-    #[arg(short, long, global = true, value_enum, default_values_t = vec![Source::Eastmoney, Source::Sina, Source::Ths])]
+    #[arg(short, long, global = true, value_enum)]
     source: Vec<Source>,
 
-    /// HTTP proxy URL
+    /// HTTP proxy URL for TradingView only
     #[arg(long, global = true)]
     proxy: Option<String>,
 
@@ -72,6 +73,8 @@ pub enum Source {
     Sina,
     /// THS
     Ths,
+    /// TradingView
+    Tradingview,
 }
 
 impl Source {
@@ -80,6 +83,7 @@ impl Source {
             Source::Eastmoney => SourceKind::Eastmoney,
             Source::Sina => SourceKind::Sina,
             Source::Ths => SourceKind::Ths,
+            Source::Tradingview => SourceKind::Tradingview,
         }
     }
 }
@@ -295,6 +299,22 @@ pub enum StockAction {
         #[arg(short, long)]
         limit: Option<usize>,
     },
+    /// Search symbols globally
+    Search {
+        query: String,
+        #[arg(long)]
+        filter: Option<String>,
+        #[arg(long, default_value = "0")]
+        offset: u32,
+    },
+    /// Get TradingView technical analysis consensus
+    Ta {
+        symbol: String,
+    },
+    /// Get TradingView analyst consensus and estimates
+    Analyst {
+        symbol: String,
+    },
 }
 
 /// ETF subcommands.
@@ -499,11 +519,83 @@ pub enum MarketAction {
         #[arg(short, long)]
         limit: Option<usize>,
     },
+    /// Run market screener
+    Screener {
+        #[arg(long, default_value = "china")]
+        market: String,
+        #[arg(long, value_delimiter = ',')]
+        columns: Vec<String>,
+        #[arg(long, default_value = "change")]
+        sort_by: String,
+        #[arg(long, default_value = "desc")]
+        sort_order: String,
+        #[arg(short, long, default_value = "50")]
+        limit: usize,
+    },
+    /// Get market hotlist
+    Hotlist {
+        #[arg(long, default_value = "america")]
+        market: String,
+        #[arg(long, default_value = "gainers")]
+        kind: String,
+        #[arg(short, long, default_value = "50")]
+        limit: usize,
+    },
+    /// Search indicators and strategies
+    IndicatorSearch {
+        query: String,
+    },
+    /// Get indicator specification
+    Indicator {
+        id: String,
+        #[arg(long, default_value = "last")]
+        version: String,
+    },
+    /// Get indicator time series
+    IndicatorSeries {
+        symbol: String,
+        id: String,
+        #[arg(long, default_value = "last")]
+        version: String,
+        #[arg(long, default_value = "1D")]
+        timeframe: String,
+        #[arg(short, long, default_value = "100")]
+        limit: usize,
+    },
+    /// Get strategy backtest report
+    Strategy {
+        symbol: String,
+        id: String,
+        #[arg(long, default_value = "last")]
+        version: String,
+        #[arg(long, default_value = "1D")]
+        timeframe: String,
+        #[arg(short, long, default_value = "300")]
+        limit: usize,
+    },
+    /// Replay chart bars from timestamp
+    Replay {
+        symbol: String,
+        from: i64,
+        #[arg(long, default_value = "1")]
+        steps: u32,
+        #[arg(long, default_value = "1D")]
+        timeframe: String,
+    },
+    /// Get saved chart drawings
+    Drawings {
+        layout: String,
+        symbol: String,
+        user_id: i64,
+    },
 }
 
-fn build_client(sources: &[Source], proxy: Option<&str>) -> DataClient {
-    let kinds: Vec<SourceKind> = sources.iter().map(|s| s.as_kind()).collect();
-    client::build_client(&kinds, proxy).expect("failed to build data client")
+fn build_client(sources: &[SourceKind], proxy: Option<&str>) -> DataClient {
+    client::build_client(sources, proxy).expect("failed to build data client")
+}
+
+fn source_kinds(sources: &[Source]) -> Vec<SourceKind> {
+    sources.iter().map(|source| source.as_kind()).collect()
 }
 
 #[tokio::main]
@@ -523,9 +615,18 @@ async fn main() -> Result<()> {
         return mcp::run_server().await;
     }
 
-    let command = cli
-        .command
-        .ok_or_else(|| anyhow::anyhow!("{}", t!("messages.no_command")))?;
+    let kinds = source_kinds(&cli.source);
+    let tui_sources = client::resolve_tui_sources(&kinds);
+    let client = if cli.command.is_none() {
+        build_client(&tui_sources, cli.proxy.as_deref())
+    } else {
+        build_client(&client::resolve_cli_sources(&kinds), cli.proxy.as_deref())
+    };
+
+    if cli.command.is_none() {
+        let source = tui_sources[0];
+        return tui::run(client, source).await;
+    }
 
     let filter = if cli.verbose { "debug" } else { "warn" };
     tracing_subscriber::registry()
@@ -535,14 +636,12 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer().with_target(false))
         .init();
 
-    let client = build_client(&cli.source, cli.proxy.as_deref());
-
     let output_config = output::OutputConfig {
         format: cli.format,
         file: cli.output_file,
     };
 
-    match command {
+    match cli.command.expect("command checked above") {
         Commands::Stock { action } => stock::handle(action, &client, &output_config).await?,
         Commands::ETF { action } => etf::handle(action, &client, &output_config).await?,
         Commands::Bond { action } => bond::handle(action, &client, &output_config).await?,

@@ -36,7 +36,7 @@ Parse from CLI strings: `KLineType::from_name("weekly")`.
 | `USMarket` | 105 |
 | `Global` | 111 |
 | `Domestic` | 106 |
-| `Industry` | 115 |
+| `Industry` | 110 |
 
 Parse: `NewsCategory::from_name("company")` or by column code.
 
@@ -91,6 +91,27 @@ Parse: `NewsCategory::from_name("company")` or by column code.
 ### Market analytics
 
 `CapitalFlowData`, `CapitalFlowHistory`, `BillboardItem`, `BillboardDetail`, `EarningsForecast`, `StockConnectData`, `MarginTradingData`, `IPOData`, `BlockTradeData`, `InstitutionalResearchData`, `ResearchReportData`.
+
+### TradingView analytics
+
+| Type | Purpose |
+|------|---------|
+| `TvTechnicalAnalysis` | TA consensus by period |
+| `TvAnalystData` | Analyst ratings, price targets, forecasts, optional estimate history |
+| `TvAnalystRatings` | Buy / sell / hold / over / under counts |
+| `TvAnalystPriceTargets` | Average, high, low, median targets |
+| `TvAnalystForecasts` | EPS and revenue next FY |
+| `TvAnalystEstimates` | Quarterly and annual estimate series |
+| `TvEstimateSeries` / `TvEstimatePoint` | Historical estimate points |
+| `TvSymbolMatch` | Symbol search result |
+| `TvScreenerResult` | Screener / hotlist rows |
+| `TvCalendarEvent` | Economic calendar entry |
+| `TvIndicatorMeta` / `TvIndicatorSpec` / `TvIndicatorSeries` | Built-in indicator metadata and series |
+| `TvStrategyReport` | Strategy backtest output |
+| `TvReplayResult` | Chart replay bars |
+| `TvDrawing` | Saved chart drawing |
+| `TvUserSession` | Login session cookies and auth token |
+| `TvPinePermUser` | Invite-only script ACL entry |
 
 ### Boards
 

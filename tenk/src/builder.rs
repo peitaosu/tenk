@@ -2,7 +2,7 @@
 
 use crate::client::DataClient;
 use crate::error::DataResult;
-use crate::sources::{EastMoneySource, SinaSource, THSSource};
+use crate::sources::{EastMoneySource, SinaSource, THSSource, TradingViewSource};
 
 /// Data provider selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,10 +10,18 @@ pub enum SourceKind {
     Eastmoney,
     Sina,
     Ths,
+    Tradingview,
 }
 
 impl SourceKind {
-    pub const ALL: &'static [Self] = &[Self::Eastmoney, Self::Sina, Self::Ths];
+    pub const DEFAULT: &'static [Self] = &[
+        Self::Eastmoney,
+        Self::Sina,
+        Self::Ths,
+        Self::Tradingview,
+    ];
+
+    pub const ALL: &'static [Self] = Self::DEFAULT;
 }
 
 /// Builds a configured [`DataClient`].
@@ -42,7 +50,7 @@ impl ClientBuilder {
 
     pub fn build(self) -> DataResult<DataClient> {
         let sources = if self.sources.is_empty() {
-            SourceKind::ALL.to_vec()
+            SourceKind::DEFAULT.to_vec()
         } else {
             self.sources
         };
@@ -62,14 +70,16 @@ impl ClientBuilder {
                         .with_extended_market(em);
                 }
                 SourceKind::Sina => {
-                    let sina = SinaSource::try_new(proxy)?;
+                    let sina = SinaSource::try_new(None)?;
                     client = client
                         .with_source(sina.clone())
                         .with_fund_source(sina.clone())
                         .with_bond_info_source(sina.clone())
                         .with_bond_market_source(sina.clone())
                         .with_index_source(sina.clone())
-                        .with_futures_source(sina);
+                        .with_futures_source(sina.clone())
+                        .with_news_source(sina.clone())
+                        .with_research_report_source(sina);
                 }
                 SourceKind::Ths => {
                     let ths = THSSource::try_new(proxy)?;
@@ -79,7 +89,12 @@ impl ClientBuilder {
                         .with_bond_info_source(ths.clone())
                         .with_bond_market_source(ths.clone())
                         .with_board_source(ths.clone())
-                        .with_news_source(ths);
+                        .with_news_source(ths.clone())
+                        .with_research_report_source(ths);
+                }
+                SourceKind::Tradingview => {
+                    let tv = TradingViewSource::try_new(proxy)?;
+                    client = client.with_tradingview_capabilities(tv);
                 }
             }
         }
@@ -109,7 +124,14 @@ mod tests {
 
     #[test]
     fn test_source_kind_all() {
-        assert_eq!(SourceKind::ALL.len(), 3);
+        assert_eq!(SourceKind::ALL.len(), 4);
         assert!(SourceKind::ALL.contains(&SourceKind::Eastmoney));
+    }
+
+    #[test]
+    fn test_source_kind_default_includes_tradingview() {
+        assert_eq!(SourceKind::DEFAULT.len(), 4);
+        assert!(SourceKind::DEFAULT.contains(&SourceKind::Tradingview));
+        assert_eq!(SourceKind::DEFAULT, SourceKind::ALL);
     }
 }

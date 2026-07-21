@@ -6,14 +6,13 @@ use rust_i18n::t;
 use tenk::{
     BillboardDetail, BillboardItem, BlockTradeData, CapitalFlowData, CapitalFlowHistory,
     DataClient, EarningsForecast, IPOData, InstitutionalResearchData, MarginTradingData,
-    ResearchReportData, StockConnectData,
+    ResearchReportData, StockConnectData, TvHotlistKind,
 };
 
 use crate::MarketAction;
 use crate::i18n::format_amount_i18n;
-use crate::output::{
-    OutputConfig, TableRow, change_pct_cell, print_output, right_cell,
-};
+use crate::output::{OutputConfig, TableRow, change_pct_cell, print_json_value, print_output, right_cell};
+use crate::tv_util;
 
 pub async fn handle(
     action: MarketAction,
@@ -65,14 +64,90 @@ pub async fn handle(
             print_output(&data, config);
         }
         MarketAction::Research { limit } => {
-            let data = client.get_institutional_research(limit).await?;
+            let data = client.get_institutional_research(1, limit).await?;
             print_output(&data, config);
         }
         MarketAction::Report { symbol, limit } => {
             let data = client
-                .get_research_reports(symbol.as_deref(), limit)
+                .get_research_reports(symbol.as_deref(), 1, limit)
                 .await?;
             print_output(&data, config);
+        }
+        MarketAction::Screener {
+            market,
+            columns,
+            sort_by,
+            sort_order,
+            limit,
+        } => {
+            let request = tv_util::screener_request(market, columns, sort_by, sort_order, limit);
+            print_json_value(&client.run_screener(&request).await?, config);
+        }
+        MarketAction::Hotlist { market, kind, limit } => {
+            let kind = TvHotlistKind::from_name(&kind).unwrap_or(TvHotlistKind::Gainers);
+            print_json_value(&client.get_hotlist(&market, kind, limit).await?, config);
+        }
+        MarketAction::IndicatorSearch { query } => {
+            print_json_value(&client.search_indicators(&query).await?, config);
+        }
+        MarketAction::Indicator { id, version } => {
+            print_json_value(&client.get_indicator_spec(&id, &version).await?, config);
+        }
+        MarketAction::IndicatorSeries {
+            symbol,
+            id,
+            version,
+            timeframe,
+            limit,
+        } => {
+            let options = tv_util::chart_options(&timeframe, limit);
+            print_json_value(
+                &client
+                    .get_indicator_series(&symbol, &id, &version, &options)
+                    .await?,
+                config,
+            );
+        }
+        MarketAction::Strategy {
+            symbol,
+            id,
+            version,
+            timeframe,
+            limit,
+        } => {
+            let options = tv_util::chart_options(&timeframe, limit);
+            print_json_value(
+                &client
+                    .get_strategy_report(&symbol, &id, &version, &options)
+                    .await?,
+                config,
+            );
+        }
+        MarketAction::Replay {
+            symbol,
+            from,
+            steps,
+            timeframe,
+        } => {
+            let options = tv_util::chart_options(&timeframe, steps as usize);
+            print_json_value(
+                &client
+                    .get_chart_replay(&symbol, from, steps, &options)
+                    .await?,
+                config,
+            );
+        }
+        MarketAction::Drawings {
+            layout,
+            symbol,
+            user_id,
+        } => {
+            print_json_value(
+                &client
+                    .get_chart_drawings(&layout, &symbol, user_id)
+                    .await?,
+                config,
+            );
         }
     }
     Ok(())

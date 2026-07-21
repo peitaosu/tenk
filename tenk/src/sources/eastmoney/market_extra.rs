@@ -3,7 +3,7 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
 use tracing::debug;
 
-use super::EastMoneySource;
+use super::{deserialize_opt_f64, EastMoneySource};
 use crate::data::{
     BoardItem, CurrentMarketData, Exchange, IndexCode, KLineType, LimitPoolItem, LimitPoolKind,
     MacroRecord, MarketData, StockCode,
@@ -23,7 +23,7 @@ impl EastMoneySource {
         fs: &str,
         limit: Option<usize>,
     ) -> DataResult<Vec<BoardItem>> {
-        let url = "https://82.push2.eastmoney.com/api/qt/clist/get";
+        let url = super::CLIST_URL;
         let mut items = Vec::new();
         let page_size = 100;
         let mut page = 1u32;
@@ -56,9 +56,9 @@ impl EastMoneySource {
                 code: String,
                 #[serde(rename = "f14")]
                 name: String,
-                #[serde(rename = "f2", default)]
+                #[serde(rename = "f2", default, deserialize_with = "deserialize_opt_f64")]
                 price: Option<f64>,
-                #[serde(rename = "f3", default)]
+                #[serde(rename = "f3", default, deserialize_with = "deserialize_opt_f64")]
                 change_pct: Option<f64>,
             }
 
@@ -93,61 +93,21 @@ impl EastMoneySource {
         &self,
         secids: &[String],
     ) -> DataResult<Vec<CurrentMarketData>> {
-        let mut results = Vec::with_capacity(secids.len());
-        for secid in secids {
-            let params = [
-                ("secid", secid.as_str()),
-                ("fields", "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170"),
-                ("ut", "fa5fd1943c7b386f172d6893dbfba10b"),
-            ];
-            let url = "https://push2.eastmoney.com/api/qt/stock/get";
-            #[derive(Deserialize)]
-            struct Resp {
-                data: Option<Row>,
-            }
-            #[derive(Deserialize)]
-            struct Row {
-                #[serde(rename = "f57")]
-                code: String,
-                #[serde(rename = "f58")]
-                name: String,
-                #[serde(rename = "f43", default)]
-                price: Option<i64>,
-                #[serde(rename = "f44", default)]
-                high: Option<i64>,
-                #[serde(rename = "f45", default)]
-                low: Option<i64>,
-                #[serde(rename = "f46", default)]
-                open: Option<i64>,
-                #[serde(rename = "f47", default)]
-                volume: Option<u64>,
-                #[serde(rename = "f48", default)]
-                amount: Option<f64>,
-                #[serde(rename = "f60", default)]
-                pre_close: Option<i64>,
-                #[serde(rename = "f169", default)]
-                change: Option<i64>,
-                #[serde(rename = "f170", default)]
-                change_pct: Option<i64>,
-            }
-            let response: Resp = self.request.get_json_with_params(url, &params).await?;
-            if let Some(data) = response.data {
-                results.push(CurrentMarketData {
-                    stock_code: data.code,
-                    short_name: data.name,
-                    price: data.price.map(|v| v as f64 / 100.0).unwrap_or(0.0),
-                    open: data.open.map(|v| v as f64 / 100.0),
-                    high: data.high.map(|v| v as f64 / 100.0),
-                    low: data.low.map(|v| v as f64 / 100.0),
-                    pre_close: data.pre_close.map(|v| v as f64 / 100.0),
-                    change: data.change.map(|v| v as f64 / 100.0).unwrap_or(0.0),
-                    change_pct: data.change_pct.map(|v| v as f64 / 100.0).unwrap_or(0.0),
-                    volume: data.volume.unwrap_or(0) * 100,
-                    amount: data.amount.unwrap_or(0.0),
-                });
-            }
-        }
-        Ok(results)
+        let symbols: Vec<StockCode> = secids
+            .iter()
+            .filter_map(|secid| {
+                let (prefix, code) = secid.split_once('.')?;
+                let exchange = match prefix {
+                    "1" => Exchange::SH,
+                    "0" => Exchange::from_stock_code(code),
+                    "116" => Exchange::HK,
+                    "105" => Exchange::US,
+                    _ => Exchange::Unknown,
+                };
+                Some(StockCode::new(code.to_string(), String::new(), exchange))
+            })
+            .collect();
+        self.fetch_current_quotes(&symbols).await
     }
 
     async fn fetch_kline(
@@ -175,17 +135,7 @@ impl EastMoneySource {
             ("beg", &start),
             ("end", &end),
         ];
-        let url = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
-        #[derive(Deserialize)]
-        struct KResp {
-            data: Option<KData>,
-        }
-        #[derive(Deserialize)]
-        struct KData {
-            klines: Option<Vec<String>>,
-        }
-        let response: KResp = self.request.get_json_with_params(url, &params).await?;
-        let klines = response.data.and_then(|d| d.klines).unwrap_or_default();
+        let klines = self.fetch_kline_lines(&params).await?;
         let mut result = Vec::with_capacity(klines.len());
         for line in klines {
             let parts: Vec<&str> = line.split(',').collect();
@@ -244,7 +194,7 @@ impl EastMoneySource {
 #[async_trait]
 impl IndexMarketSource for EastMoneySource {
     async fn get_index_list(&self, limit: Option<usize>) -> DataResult<Vec<IndexCode>> {
-        let url = "https://push2.eastmoney.com/api/qt/clist/get";
+        let url = "https://push2delay.eastmoney.com/api/qt/clist/get";
         let mut items = Vec::new();
         let page_size = 100;
         let mut page = 1u32;
@@ -357,7 +307,7 @@ impl BoardMarketSource for EastMoneySource {
     ) -> DataResult<Vec<StockCode>> {
         use crate::data::{Exchange, StockCode};
 
-        let url = "https://29.push2.eastmoney.com/api/qt/clist/get";
+        let url = super::CLIST_URL;
         let mut items = Vec::new();
         let page_size = 100;
         let mut page = 1u32;

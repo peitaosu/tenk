@@ -11,10 +11,11 @@
 | 文档 | 说明 |
 |------|------|
 | [架构](docs/zh-CN/architecture.md) | 工作区结构、模块划分、请求流程 |
-| [库](docs/zh-CN/library.md) | `ClientBuilder`、`DataClient`、回退机制 |
-| [数据源](docs/zh-CN/sources.md) | 东方财富、新浪、同花顺 — 能力矩阵 |
+| [库](docs/zh-CN/library.md) | `ClientBuilder`、`DataClient`、API |
+| [数据源](docs/zh-CN/sources.md) | EastMoney、Sina、THS、TradingView — 能力矩阵 |
 | [数据类型](docs/zh-CN/data-types.md) | 核心枚举与结构体 |
 | [命令行](docs/zh-CN/cli.md) | CLI 用法 |
+| [TUI](docs/zh-CN/tui.md) | 终端界面（默认） |
 | [MCP 服务](docs/zh-CN/mcp.md) | Model Context Protocol 集成 |
 | [开发](docs/zh-CN/development.md) | 构建、测试、示例 |
 
@@ -50,6 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **命令行**
 
 ```bash
+tenk
 tenk stock quote 600519
 tenk stock kline 600519 -l 10
 tenk etf quote 510300

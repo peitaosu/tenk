@@ -6,10 +6,10 @@ use tracing::{debug, warn};
 
 use crate::data::{
     CurrentMarketData, ETFCode,
-    ETFCurrentData, ETFMarketData, ETFMinuteData, Exchange, KLineType, MarketData, MinuteData, OrderBookData, StockCode, StockInfo, TickData,
+    ETFCurrentData, ETFMarketData, ETFMinuteData, Exchange, KLineType, MarketData, MinuteData, OrderBookData, StockCode, StockInfo, StockSearchHit, TickData,
 };
 use crate::error::DataResult;
-use crate::util::{parse_order_book_from_fields, parse_tick_details, parse_trade_date};
+use crate::util::{parse_cn_market_time, parse_order_book_from_fields, parse_tick_details, parse_trade_date};
 use crate::traits::{
     DataSource, FundInfoSource, FundMarketSource, StockInfoSource, StockMarketSource,
 };
@@ -29,7 +29,7 @@ impl DataSource for EastMoneySource {
     /// Checks if the source is available.
     async fn is_available(&self) -> bool {
         self.request
-            .get("https://push2.eastmoney.com/api/qt/stock/trends2/get")
+            .get("https://push2delay.eastmoney.com/api/qt/ulist.np/get?fltt=2&secids=1.600519&fields=f12&ut=fa5fd1943c7b386f172d6893dbfba10b")
             .await
             .is_ok()
     }
@@ -45,7 +45,24 @@ impl StockMarketSource for EastMoneySource {
         end_date: Option<&str>,
         k_type: KLineType,
     ) -> DataResult<Vec<MarketData>> {
-        let secid = Exchange::eastmoney_secid(stock_code);
+        self.get_market_symbol(
+            &StockCode::with_inferred_exchange(stock_code),
+            start_date,
+            end_date,
+            k_type,
+        )
+        .await
+    }
+
+    async fn get_market_symbol(
+        &self,
+        symbol: &StockCode,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        k_type: KLineType,
+    ) -> DataResult<Vec<MarketData>> {
+        let stock_code = symbol.stock_code.as_str();
+        let secid = symbol.exchange.eastmoney_secid(stock_code);
         let klt = k_type.to_api_value();
 
         let start = start_date
@@ -69,11 +86,7 @@ impl StockMarketSource for EastMoneySource {
             ("end", &end),
         ];
 
-        let url = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
-        debug!("Fetching market data from East Money: {}", stock_code);
-
-        let response: KLineResponse = self.request.get_json_with_params(url, &params).await?;
-        let klines = response.data.and_then(|d| d.klines).unwrap_or_default();
+        let klines = self.fetch_kline_lines(&params).await?;
 
         if klines.is_empty() {
             return Ok(Vec::new());
@@ -122,162 +135,46 @@ impl StockMarketSource for EastMoneySource {
 
     /// Fetches real-time market quotes.
     async fn get_market_current(&self, stock_codes: &[&str]) -> DataResult<Vec<CurrentMarketData>> {
-        if stock_codes.is_empty() {
-            return Ok(Vec::new());
-        }
+        let symbols: Vec<StockCode> = stock_codes
+            .iter()
+            .map(|code| StockCode::with_inferred_exchange(*code))
+            .collect();
+        self.get_market_current_symbols(&symbols).await
+    }
 
-        let mut results = Vec::with_capacity(stock_codes.len());
-
-        for code in stock_codes {
-            let secid = Exchange::eastmoney_secid(code);
-            let params = [
-                ("secid", secid.as_str()),
-                ("fields", "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170"),
-            ];
-
-            let url = "https://push2.eastmoney.com/api/qt/stock/get";
-            debug!("Fetching stock quote for {}", code);
-
-            #[derive(Deserialize)]
-            struct StockGetResponse {
-                data: Option<StockGetData>,
-            }
-
-            #[derive(Deserialize)]
-            struct StockGetData {
-                #[serde(rename = "f57")]
-                code: String,
-                #[serde(rename = "f58")]
-                name: String,
-                #[serde(rename = "f43", default)]
-                price: Option<i64>,
-                #[serde(rename = "f44", default)]
-                high: Option<i64>,
-                #[serde(rename = "f45", default)]
-                low: Option<i64>,
-                #[serde(rename = "f46", default)]
-                open: Option<i64>,
-                #[serde(rename = "f47", default)]
-                volume: Option<u64>,
-                #[serde(rename = "f48", default)]
-                amount: Option<f64>,
-                #[serde(rename = "f60", default)]
-                pre_close: Option<i64>,
-                #[serde(rename = "f169", default)]
-                change: Option<i64>,
-                #[serde(rename = "f170", default)]
-                change_pct: Option<i64>,
-            }
-
-            match self.request.get_json_with_params(url, &params).await {
-                Ok(response) => {
-                    let response: StockGetResponse = response;
-                    if let Some(data) = response.data {
-                        results.push(CurrentMarketData {
-                            stock_code: data.code,
-                            short_name: data.name,
-                            price: data.price.map(|v| v as f64 / 100.0).unwrap_or(0.0),
-                            open: data.open.map(|v| v as f64 / 100.0),
-                            high: data.high.map(|v| v as f64 / 100.0),
-                            low: data.low.map(|v| v as f64 / 100.0),
-                            pre_close: data.pre_close.map(|v| v as f64 / 100.0),
-                            change: data.change.map(|v| v as f64 / 100.0).unwrap_or(0.0),
-                            change_pct: data.change_pct.map(|v| v as f64 / 100.0).unwrap_or(0.0),
-                            volume: data.volume.unwrap_or(0) * 100,
-                            amount: data.amount.unwrap_or(0.0),
-                        });
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to fetch stock {}: {}", code, e);
-                }
-            }
-        }
-
-        Ok(results)
+    async fn get_market_current_symbols(
+        &self,
+        symbols: &[StockCode],
+    ) -> DataResult<Vec<CurrentMarketData>> {
+        self.fetch_current_quotes(symbols).await
     }
 
     /// Fetches intraday minute-level data.
     async fn get_market_min(&self, stock_code: &str) -> DataResult<Vec<MinuteData>> {
-        let secid = Exchange::eastmoney_secid(stock_code);
+        self.get_market_min_symbol(&StockCode::with_inferred_exchange(stock_code))
+            .await
+    }
 
-        let params = [
-            ("fields1", "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13"),
-            ("fields2", "f51,f52,f53,f54,f55,f56,f57,f58"),
-            ("ut", "fa5fd1943c7b386f172d6893dbfba10b"),
-            ("ndays", "1"),
-            ("iscr", "1"),
-            ("iscca", "0"),
-            ("secid", &secid),
-        ];
+    async fn get_market_min_days(&self, stock_code: &str, ndays: u32) -> DataResult<Vec<MinuteData>> {
+        self.get_market_min_days_symbol(&StockCode::with_inferred_exchange(stock_code), ndays)
+            .await
+    }
 
-        let url = "https://push2.eastmoney.com/api/qt/stock/trends2/get";
-        debug!("Fetching minute data from East Money: {}", stock_code);
+    async fn get_market_min_symbol(&self, symbol: &StockCode) -> DataResult<Vec<MinuteData>> {
+        self.fetch_stock_minute_trends(symbol, 1).await
+    }
 
-        let response: MinuteResponse = self.request.get_json_with_params(url, &params).await?;
-
-        let data = match response.data {
-            Some(d) => d,
-            None => return Ok(Vec::new()),
-        };
-
-        let pre_close = data.pre_close;
-        let trends = data.trends.unwrap_or_default();
-
-        if trends.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let mut result = Vec::with_capacity(trends.len());
-        let today = Utc::now().date_naive();
-
-        for line in trends {
-            let parts: Vec<&str> = line.split(',').collect();
-            if parts.len() < 8 {
-                continue;
-            }
-
-            let time_str = parts[0];
-            let trade_time = if time_str.contains(' ') {
-                chrono::NaiveDateTime::parse_from_str(time_str, "%Y-%m-%d %H:%M")
-                    .map(|dt| Utc.from_utc_datetime(&dt))
-                    .unwrap_or_else(|_| Utc::now())
-            } else {
-                chrono::NaiveTime::parse_from_str(time_str, "%H:%M")
-                    .map(|t| Utc.from_utc_datetime(&today.and_time(t)))
-                    .unwrap_or_else(|_| Utc::now())
-            };
-
-            let price: f64 = parts[2].parse().unwrap_or(0.0);
-            let volume: u64 = (parts[5].parse::<f64>().unwrap_or(0.0) * 100.0) as u64;
-            let amount: f64 = parts[6].parse().unwrap_or(0.0);
-            let avg_price: f64 = parts[7].parse().unwrap_or(price);
-
-            let change = price - pre_close;
-            let change_pct = if pre_close > 0.0 {
-                (change / pre_close * 100.0 * 100.0).round() / 100.0
-            } else {
-                0.0
-            };
-
-            result.push(MinuteData {
-                stock_code: stock_code.to_string(),
-                trade_time,
-                price,
-                change,
-                change_pct,
-                volume,
-                avg_price,
-                amount,
-            });
-        }
-
-        Ok(result)
+    async fn get_market_min_days_symbol(
+        &self,
+        symbol: &StockCode,
+        ndays: u32,
+    ) -> DataResult<Vec<MinuteData>> {
+        self.fetch_stock_minute_trends(symbol, ndays.max(1)).await
     }
 
     async fn get_order_book(&self, stock_code: &str) -> DataResult<OrderBookData> {
-        let secid = Exchange::eastmoney_secid(stock_code);
-        let url = "https://push2.eastmoney.com/api/qt/stock/get";
+        let secid = Exchange::infer_eastmoney_secid(stock_code);
+        let url = "https://push2delay.eastmoney.com/api/qt/stock/get";
         let params = [
             ("secid", secid.as_str()),
             (
@@ -366,8 +263,8 @@ impl StockMarketSource for EastMoneySource {
     }
 
     async fn get_ticks(&self, stock_code: &str) -> DataResult<Vec<TickData>> {
-        let secid = Exchange::eastmoney_secid(stock_code);
-        let url = "https://push2.eastmoney.com/api/qt/stock/details/get";
+        let secid = Exchange::infer_eastmoney_secid(stock_code);
+        let url = "https://push2delay.eastmoney.com/api/qt/stock/details/get";
         let params = [
             ("secid", secid.as_str()),
             ("fields1", "f1,f2,f3,f4"),
@@ -400,11 +297,289 @@ impl StockMarketSource for EastMoneySource {
     }
 }
 
+fn codes_equivalent(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let left_trimmed = left.trim_start_matches('0');
+    let right_trimmed = right.trim_start_matches('0');
+    !left_trimmed.is_empty() && left_trimmed == right_trimmed
+}
+
+impl EastMoneySource {
+    pub(crate) async fn fetch_current_quotes(
+        &self,
+        symbols: &[StockCode],
+    ) -> DataResult<Vec<CurrentMarketData>> {
+        if symbols.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        const CHUNK_SIZE: usize = 40;
+        let mut results = Vec::with_capacity(symbols.len());
+
+        for chunk in symbols.chunks(CHUNK_SIZE) {
+            let secids = chunk
+                .iter()
+                .map(|symbol| symbol.exchange.eastmoney_secid(&symbol.stock_code))
+                .collect::<Vec<_>>()
+                .join(",");
+
+            let url = "https://push2delay.eastmoney.com/api/qt/ulist.np/get";
+            let params = [
+                ("fltt", "2"),
+                ("secids", secids.as_str()),
+                (
+                    "fields",
+                    "f2,f3,f4,f5,f6,f7,f12,f14,f15,f16,f17,f18",
+                ),
+                ("ut", "fa5fd1943c7b386f172d6893dbfba10b"),
+            ];
+
+            debug!("Fetching batch quotes for {} symbols", chunk.len());
+
+            #[derive(Deserialize)]
+            struct UlistResponse {
+                data: Option<UlistData>,
+            }
+
+            #[derive(Deserialize)]
+            struct UlistData {
+                diff: Option<Vec<UlistRow>>,
+            }
+
+            #[derive(Deserialize)]
+            struct UlistRow {
+                #[serde(rename = "f12", default)]
+                code: Option<String>,
+                #[serde(rename = "f2", default)]
+                price: Option<f64>,
+                #[serde(rename = "f3", default)]
+                change_pct: Option<f64>,
+                #[serde(rename = "f4", default)]
+                change: Option<f64>,
+                #[serde(rename = "f5", default)]
+                volume: Option<f64>,
+                #[serde(rename = "f6", default)]
+                amount: Option<f64>,
+                #[serde(rename = "f14", default)]
+                name: Option<String>,
+                #[serde(rename = "f15", default)]
+                high: Option<f64>,
+                #[serde(rename = "f16", default)]
+                low: Option<f64>,
+                #[serde(rename = "f17", default)]
+                open: Option<f64>,
+                #[serde(rename = "f18", default)]
+                pre_close: Option<f64>,
+            }
+
+            let response: UlistResponse = match self.request.get_json_with_params(url, &params).await {
+                Ok(response) => response,
+                Err(error) => {
+                    warn!("Failed to fetch batch quotes: {}", error);
+                    continue;
+                }
+            };
+
+            let rows = response.data.and_then(|data| data.diff).unwrap_or_default();
+            for symbol in chunk {
+                let row = rows.iter().find(|row| {
+                    row.code.as_deref().is_some_and(|code| {
+                        codes_equivalent(code, &symbol.stock_code)
+                    })
+                });
+                let Some(row) = row else {
+                    continue;
+                };
+                let short_name = row
+                    .name
+                    .clone()
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or_else(|| symbol.short_name.clone());
+                results.push(CurrentMarketData {
+                    stock_code: symbol.stock_code.clone(),
+                    short_name,
+                    price: row.price.unwrap_or(0.0),
+                    open: row.open,
+                    high: row.high,
+                    low: row.low,
+                    pre_close: row.pre_close,
+                    change: row.change.unwrap_or(0.0),
+                    change_pct: row.change_pct.unwrap_or(0.0),
+                    volume: row.volume.unwrap_or(0.0) as u64,
+                    amount: row.amount.unwrap_or(0.0),
+                });
+            }
+        }
+
+        if results.is_empty() {
+            return Err(crate::error::DataError::NoDataAvailable);
+        }
+
+        Ok(results)
+    }
+
+    async fn fetch_stock_minute_trends(&self, symbol: &StockCode, ndays: u32) -> DataResult<Vec<MinuteData>> {
+        let ndays_param = ndays.max(1).min(5);
+        let use_history = ndays_param > 1 || matches!(symbol.exchange, Exchange::HK | Exchange::US);
+
+        if use_history {
+            match self.fetch_historical_minute_trends(symbol, ndays_param).await {
+                Ok(data) if Self::minute_trading_days(&data) > 1 => return Ok(data),
+                Ok(data) if ndays_param == 1 && !data.is_empty() => return Ok(data),
+                Ok(_) | Err(_) => {
+                    debug!(
+                        "Historical minute trends unavailable for {}, falling back to realtime endpoint",
+                        symbol.stock_code
+                    );
+                }
+            }
+        }
+
+        let realtime_ndays = if ndays_param > 1 { 1 } else { ndays_param };
+        self.fetch_realtime_minute_trends(symbol, realtime_ndays).await
+    }
+
+    async fn fetch_historical_minute_trends(
+        &self,
+        symbol: &StockCode,
+        ndays: u32,
+    ) -> DataResult<Vec<MinuteData>> {
+        let secid = symbol.exchange.eastmoney_secid(&symbol.stock_code);
+        let ndays = ndays.to_string();
+        let params = [
+            ("fields1", "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13"),
+            ("fields2", "f51,f52,f53,f54,f55,f56,f57,f58"),
+            ("ut", "7eea3edcaed734bea9cbfc24409ed989"),
+            ("ndays", ndays.as_str()),
+            ("iscr", "0"),
+            ("iscca", "0"),
+            ("secid", secid.as_str()),
+        ];
+
+        debug!(
+            "Fetching historical minute data from East Money: {} (ndays={})",
+            symbol.stock_code, ndays
+        );
+
+        let response: MinuteResponse = self
+            .history_request
+            .get_json_with_params(
+                "https://push2his.eastmoney.com/api/qt/stock/trends2/get",
+                &params,
+            )
+            .await?;
+        Self::parse_minute_response(symbol, response)
+    }
+
+    async fn fetch_realtime_minute_trends(
+        &self,
+        symbol: &StockCode,
+        ndays: u32,
+    ) -> DataResult<Vec<MinuteData>> {
+        let secid = symbol.exchange.eastmoney_secid(&symbol.stock_code);
+        let ndays = ndays.max(1).min(5).to_string();
+        let params = [
+            ("fields1", "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13"),
+            ("fields2", "f51,f52,f53,f54,f55,f56,f57,f58"),
+            ("ut", "fa5fd1943c7b386f172d6893dbfba10b"),
+            ("ndays", ndays.as_str()),
+            ("iscr", "1"),
+            ("iscca", "0"),
+            ("secid", secid.as_str()),
+        ];
+
+        debug!(
+            "Fetching realtime minute data from East Money: {} (ndays={})",
+            symbol.stock_code, ndays
+        );
+
+        let response: MinuteResponse = self
+            .request
+            .get_json_with_params(
+                "https://push2delay.eastmoney.com/api/qt/stock/trends2/get",
+                &params,
+            )
+            .await?;
+        Self::parse_minute_response(symbol, response)
+    }
+
+    fn parse_minute_response(
+        symbol: &StockCode,
+        response: MinuteResponse,
+    ) -> DataResult<Vec<MinuteData>> {
+        let data = match response.data {
+            Some(data) => data,
+            None => return Ok(Vec::new()),
+        };
+
+        let pre_close = data.pre_close;
+        let trends = data.trends.unwrap_or_default();
+        if trends.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut result = Vec::with_capacity(trends.len());
+        let today = crate::util::cn_market_date(Utc::now());
+
+        for line in trends {
+            let parts: Vec<&str> = line.split(',').collect();
+            if parts.len() < 8 {
+                continue;
+            }
+
+            let time_str = parts[0];
+            let trade_time = parse_cn_market_time(time_str, today);
+
+            let mut price: f64 = parts[2].parse().unwrap_or(0.0);
+            if price <= 0.0 {
+                price = parts[1].parse().unwrap_or(0.0);
+            }
+            let volume: u64 = parts[5].parse::<f64>().unwrap_or(0.0) as u64;
+            let amount: f64 = parts[6].parse().unwrap_or(0.0);
+            let avg_price: f64 = parts[7].parse().unwrap_or(price);
+            let price = if price <= 0.0 { avg_price } else { price };
+
+            let change = price - pre_close;
+            let change_pct = if pre_close > 0.0 {
+                (change / pre_close * 100.0 * 100.0).round() / 100.0
+            } else {
+                0.0
+            };
+
+            result.push(MinuteData {
+                stock_code: symbol.stock_code.clone(),
+                trade_time,
+                price,
+                change,
+                change_pct,
+                volume,
+                avg_price,
+                amount,
+            });
+        }
+
+        result.sort_by_key(|m| m.trade_time);
+        Ok(result)
+    }
+
+    fn minute_trading_days(data: &[MinuteData]) -> usize {
+        let mut dates: Vec<_> = data
+            .iter()
+            .map(|minute| crate::util::cn_market_date(minute.trade_time))
+            .collect();
+        dates.sort();
+        dates.dedup();
+        dates.len()
+    }
+}
+
 #[async_trait]
 impl StockInfoSource for EastMoneySource {
     /// Fetches all available stock codes.
     async fn get_all_codes(&self, limit: Option<usize>) -> DataResult<Vec<StockCode>> {
-        let url = "https://82.push2.eastmoney.com/api/qt/clist/get";
+        let url = super::CLIST_URL;
         let mut all_codes = Vec::new();
         let page_size = 100;
         let mut page = 1;
@@ -467,6 +642,10 @@ impl StockInfoSource for EastMoneySource {
         }
 
         Ok(all_codes)
+    }
+
+    async fn search_stocks(&self, keyword: &str, limit: usize) -> DataResult<Vec<StockSearchHit>> {
+        self.fetch_stock_search(keyword, limit).await
     }
 
     /// Fetches detailed stock information.
@@ -579,7 +758,7 @@ impl StockInfoSource for EastMoneySource {
 impl FundInfoSource for EastMoneySource {
     /// Fetches all available ETF codes.
     async fn get_all_etf_codes(&self, limit: Option<usize>) -> DataResult<Vec<ETFCode>> {
-        let url = "https://82.push2.eastmoney.com/api/qt/clist/get";
+        let url = super::CLIST_URL;
         let mut all_codes = Vec::new();
         let page_size = 50;
         let mut page = 1;
@@ -653,7 +832,7 @@ impl FundMarketSource for EastMoneySource {
         end_date: Option<&str>,
         k_type: KLineType,
     ) -> DataResult<Vec<ETFMarketData>> {
-        let secid = Exchange::eastmoney_secid(fund_code);
+        let secid = Exchange::infer_eastmoney_secid(fund_code);
         let klt = k_type.to_api_value();
 
         let start = start_date
@@ -677,11 +856,7 @@ impl FundMarketSource for EastMoneySource {
             ("end", &end),
         ];
 
-        let url = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
-        debug!("Fetching ETF market data from East Money: {}", fund_code);
-
-        let response: KLineResponse = self.request.get_json_with_params(url, &params).await?;
-        let klines = response.data.and_then(|d| d.klines).unwrap_or_default();
+        let klines = self.fetch_kline_lines(&params).await?;
 
         if klines.is_empty() {
             return Ok(Vec::new());
@@ -733,13 +908,13 @@ impl FundMarketSource for EastMoneySource {
         let mut results = Vec::with_capacity(fund_codes.len());
 
         for code in fund_codes {
-            let secid = Exchange::eastmoney_secid(code);
+            let secid = Exchange::infer_eastmoney_secid(code);
             let params = [
                 ("secid", secid.as_str()),
                 ("fields", "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170"),
             ];
 
-            let url = "https://push2.eastmoney.com/api/qt/stock/get";
+            let url = "https://push2delay.eastmoney.com/api/qt/stock/get";
             debug!("Fetching ETF quote for {}", code);
 
             #[derive(Deserialize)]
@@ -800,7 +975,7 @@ impl FundMarketSource for EastMoneySource {
 
     /// Fetches intraday ETF minute-level data.
     async fn get_etf_min(&self, fund_code: &str) -> DataResult<Vec<ETFMinuteData>> {
-        let secid = Exchange::eastmoney_secid(fund_code);
+        let secid = Exchange::infer_eastmoney_secid(fund_code);
 
         let params = [
             ("fields1", "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13"),
@@ -812,7 +987,7 @@ impl FundMarketSource for EastMoneySource {
             ("secid", &secid),
         ];
 
-        let url = "https://push2.eastmoney.com/api/qt/stock/trends2/get";
+        let url = "https://push2delay.eastmoney.com/api/qt/stock/trends2/get";
         debug!("Fetching ETF minute data from East Money: {}", fund_code);
 
         let response: MinuteResponse = self.request.get_json_with_params(url, &params).await?;
@@ -830,7 +1005,7 @@ impl FundMarketSource for EastMoneySource {
         }
 
         let mut result = Vec::with_capacity(trends.len());
-        let today = Utc::now().date_naive();
+        let today = crate::util::cn_market_date(Utc::now());
 
         for line in trends {
             let parts: Vec<&str> = line.split(',').collect();
@@ -839,15 +1014,7 @@ impl FundMarketSource for EastMoneySource {
             }
 
             let time_str = parts[0];
-            let trade_time = if time_str.contains(' ') {
-                chrono::NaiveDateTime::parse_from_str(time_str, "%Y-%m-%d %H:%M")
-                    .map(|dt| Utc.from_utc_datetime(&dt))
-                    .unwrap_or_else(|_| Utc::now())
-            } else {
-                chrono::NaiveTime::parse_from_str(time_str, "%H:%M")
-                    .map(|t| Utc.from_utc_datetime(&today.and_time(t)))
-                    .unwrap_or_else(|_| Utc::now())
-            };
+            let trade_time = parse_cn_market_time(time_str, today);
 
             let price: f64 = parts[2].parse().unwrap_or(0.0);
             let volume: u64 = parts[5].parse::<f64>().unwrap_or(0.0) as u64;

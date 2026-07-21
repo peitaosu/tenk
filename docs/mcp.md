@@ -28,6 +28,8 @@ stdio transport. Server name: `tenk-mcp`. Version from crate metadata.
 | Variable | Description |
 |----------|-------------|
 | `TENK_PROXY` | HTTP proxy for the underlying `DataClient` |
+| `TENK_TV_SESSION`, `TENK_TV_SIGNATURE` | Session cookies for `market_drawings` |
+| `TENK_TV_AUTH_TOKEN` | Optional WS auth token override |
 
 ## Implementation
 
@@ -92,5 +94,17 @@ Each tool handler calls `DataClient` methods and returns JSON text in a `CallToo
 | `global_hk` | Hong Kong quotes |
 | `global_us` | US quotes |
 | `limit_pool` | Limit-up/down pools |
+| `stock_search` | Global symbol search |
+| `stock_ta` | Technical analysis consensus |
+| `stock_analyst` | Analyst ratings, targets, forecasts |
+| `market_screener` | Market screener |
+| `market_hotlist` | Market hotlist |
+| `macro_calendar` | Economic calendar |
+| `market_indicator_search` | Search built-in indicators |
+| `market_indicator` | Indicator spec |
+| `market_indicator_series` | Indicator series |
+| `market_strategy` | Strategy backtest report |
+| `market_replay` | Chart replay |
+| `market_drawings` | Chart drawings |
 
 Tool parameters use `schemars` JSON Schema for MCP discovery.

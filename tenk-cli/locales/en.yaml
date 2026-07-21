@@ -17,6 +17,7 @@ headers:
   avg_price: "AvgPrice"
   direction: "Direction"
   exchange: "Exchange"
+  market: "Market"
   nav: "NAV"
   # Market data headers
   main_net: "MainNet"
@@ -146,3 +147,78 @@ trade:
 units:
   yi: "B"
   wan: "K"
+
+# TUI
+tui:
+  panels:
+    watchlist: "Watchlist"
+    quote: "Quote / Detail"
+    kline: "K-line"
+  feeds:
+    symbol_news: "News"
+    research: "Research"
+    market_stock: "Market"
+    market_finance: "Finance"
+    market_company: "Company"
+    market_us: "US"
+    market_global: "Global"
+    market_domestic: "Domestic"
+    market_industry: "Sector & macro"
+    institutional: "Institutional"
+    ta: "TA"
+    analyst: "Analyst"
+    analyst_ratings: "Ratings"
+    analyst_target: "Target"
+  status:
+    loading: "loading…"
+    live: "live 3s"
+    unknown_cmd: "unknown command"
+    symbol_format: "use CODE:EXCHANGE (e.g. 600519:SH)"
+  dialog:
+    news: "News"
+    research: "Research Report"
+    no_report_body: "Full report text is not available via API."
+  quote:
+    field: "Field"
+    value: "Value"
+    pre_close: "Pre-close"
+  kline:
+    timeline: "timeline"
+    five_days: "5-day"
+    chart: "chart"
+    table: "table"
+  search:
+    title: "Search"
+    empty: "Type code, name, or pinyin initials"
+    loading: "Searching..."
+  analysis:
+    ta: "Technical analysis (TradingView)"
+    ta_unavailable: "Technical analysis unavailable (TradingView / proxy)"
+    analyst: "Analyst (TradingView)"
+    analyst_unavailable: "Analyst unavailable (TradingView / proxy)"
+    reports: "Research reports (EastMoney / Sina / THS)"
+  labels:
+    analysts: "Analysts"
+  help_title: "Help"
+  help: |
+    Tab/1-N  focus panel
+    j/k      scroll
+    Enter    select / open dialog
+    t        cycle period: day → 5d → D/W/M/… → 60m
+    ←/→      kline mode / feed page
+    v        kline mode (same as →)
+    /        search symbol (Enter to add)
+    d        remove symbol (watchlist)
+    r        refresh
+    :        command line
+    ?        help
+    Esc      close
+    q        quit
+  hints:
+    watchlist: "j/k · / search · d remove · Enter · Tab"
+    quote: "j/k scroll · Tab"
+    kline: "j/k scroll · ←/→ mode · t period · v · r"
+    feed: "j/k · ←/→ · Enter read · r · Tab"
+    dialog: "j/k scroll · Esc close"
+    search: "j/k · Enter add · Esc close"
+    help: "Esc close"

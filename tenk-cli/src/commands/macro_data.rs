@@ -4,7 +4,7 @@ use comfy_table::Cell;
 use rust_i18n::t;
 use tenk::{DataClient, MacroRecord};
 
-use crate::output::{OutputConfig, TableRow, print_output, right_cell};
+use crate::output::{OutputConfig, TableRow, print_json_value, print_output, right_cell};
 
 #[derive(Subcommand)]
 pub enum MacroAction {
@@ -15,6 +15,12 @@ pub enum MacroAction {
     Gdp {
         #[arg(short, long)]
         limit: Option<usize>,
+    },
+    Calendar {
+        from: String,
+        to: String,
+        #[arg(long, default_value = "CN,US")]
+        countries: String,
     },
 }
 
@@ -31,6 +37,14 @@ pub async fn handle(
         MacroAction::Gdp { limit } => {
             let data = client.get_macro_gdp(limit).await?;
             print_output(&data, config);
+        }
+        MacroAction::Calendar { from, to, countries } => {
+            print_json_value(
+                &client
+                    .get_economic_calendar(&from, &to, &countries)
+                    .await?,
+                config,
+            );
         }
     }
     Ok(())

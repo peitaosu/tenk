@@ -46,6 +46,7 @@ tenk/src/
     eastmoney/        EastMoney
     sina.rs           Sina
     ths.rs            THS
+    tradingview/      TradingView（pine_perm.rs、analyst.rs 等）
   util/               公共工具
 
 tenk-cli/src/

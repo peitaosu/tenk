@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "   {:10} {:20} {:>10.3}",
             etf.fund_code,
-            truncate_str(&etf.short_name, 18),
+            etf.short_name,
             etf.net_value.unwrap_or(0.0)
         );
     }
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!(
                     "   {:10} {:15} {:>10.3} {:>9.2}%{}",
                     data.fund_code,
-                    truncate_str(&data.short_name, 13),
+                    data.short_name,
                     data.price,
                     change_pct.abs(),
                     arrow
@@ -120,12 +120,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\nDone!");
     Ok(())
-}
-
-fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.chars().count() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", s.chars().take(max_len - 3).collect::<String>())
-    }
 }

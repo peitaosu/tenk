@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use std::sync::Arc;
 
-use tenk::{DataClient, KLineType, NewsCategory, RelatedStock, format_related_stocks};
+use tenk::{
+    DataClient, KLineType, NewsCategory, RelatedStock, TvAssetFilter, TvChartOptions,
+    TvHotlistKind, TvScreenerRequest, TvTimeFrame, format_related_stocks,
+};
 
 use crate::args::{
     BoardKindArg, FinancialKindArg, OptionExchangeArg, PoolKindArg, limit_kline,
@@ -54,6 +57,154 @@ impl TenkMCPServer {
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
         Self::ok(Self::to_json(&data)?)
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TvSearchParams {
+    pub query: String,
+    pub filter: Option<String>,
+    #[serde(default)]
+    pub offset: u32,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TvScreenerParams {
+    #[serde(default = "default_tv_market")]
+    pub market: String,
+    #[serde(default)]
+    pub columns: Vec<String>,
+    #[serde(default = "default_tv_sort_by")]
+    pub sort_by: String,
+    #[serde(default = "default_tv_sort_order")]
+    pub sort_order: String,
+    #[serde(default = "default_tv_limit")]
+    pub limit: usize,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TvHotlistParams {
+    #[serde(default = "default_tv_hotlist_market")]
+    pub market: String,
+    #[serde(default = "default_tv_hotlist_kind")]
+    pub kind: String,
+    #[serde(default = "default_tv_limit")]
+    pub limit: usize,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TvCalendarParams {
+    pub from: String,
+    pub to: String,
+    #[serde(default = "default_tv_countries")]
+    pub countries: String,
+}
+
+fn default_tv_market() -> String {
+    "china".to_string()
+}
+
+fn default_tv_hotlist_market() -> String {
+    "america".to_string()
+}
+
+fn default_tv_hotlist_kind() -> String {
+    "gainers".to_string()
+}
+
+fn default_tv_sort_by() -> String {
+    "change".to_string()
+}
+
+fn default_tv_sort_order() -> String {
+    "desc".to_string()
+}
+
+fn default_tv_limit() -> usize {
+    50
+}
+
+fn default_tv_countries() -> String {
+    "CN,US".to_string()
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TvIndicatorParams {
+    pub id: String,
+    #[serde(default = "default_indicator_version")]
+    pub version: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TvStudyParams {
+    pub symbol: String,
+    pub id: String,
+    #[serde(default = "default_indicator_version")]
+    pub version: String,
+    #[serde(default = "default_tv_timeframe")]
+    pub timeframe: String,
+    #[serde(default = "default_tv_limit")]
+    pub limit: usize,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TvReplayParams {
+    pub symbol: String,
+    pub from: i64,
+    #[serde(default = "default_replay_steps")]
+    pub steps: u32,
+    #[serde(default = "default_tv_timeframe")]
+    pub timeframe: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TvDrawingsParams {
+    pub layout: String,
+    pub symbol: String,
+    pub user_id: i64,
+}
+
+fn default_indicator_version() -> String {
+    "last".to_string()
+}
+
+fn default_replay_steps() -> u32 {
+    1
+}
+
+fn default_tv_timeframe() -> String {
+    "1D".to_string()
+}
+
+fn chart_options(timeframe: &str, limit: usize) -> TvChartOptions {
+    TvChartOptions {
+        timeframe: TvTimeFrame::from_name(timeframe).unwrap_or(TvTimeFrame::Daily),
+        range: limit,
+        ..TvChartOptions::default()
+    }
+}
+
+fn screener_request(params: &TvScreenerParams) -> TvScreenerRequest {
+    let columns = if params.columns.is_empty() {
+        vec![
+            "name".into(),
+            "close".into(),
+            "change".into(),
+            "volume".into(),
+            "Recommend.All".into(),
+        ]
+    } else {
+        params.columns.clone()
+    };
+    TvScreenerRequest {
+        market: params.market.clone(),
+        columns,
+        filters: Vec::new(),
+        sort_by: params.sort_by.clone(),
+        sort_order: params.sort_order.clone(),
+        range_start: 0,
+        range_end: params.limit,
+        preset: "all_stocks".into(),
     }
 }
 
@@ -1412,7 +1563,7 @@ impl TenkMCPServer {
         params: Parameters<InstitutionalResearchParams>,
     ) -> Result<CallToolResult, McpError> {
         let data = self.client
-            .get_institutional_research(params.0.limit)
+            .get_institutional_research(1, params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
@@ -1449,7 +1600,7 @@ impl TenkMCPServer {
         params: Parameters<ResearchReportParams>,
     ) -> Result<CallToolResult, McpError> {
         let data = self.client
-            .get_research_reports(params.0.symbol.as_deref(), params.0.limit)
+            .get_research_reports(params.0.symbol.as_deref(), 1, params.0.limit)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
@@ -1753,11 +1904,160 @@ impl TenkMCPServer {
         Self::json_result(self.client.get_limit_pool(kind.into(), date.as_deref(), limit))
             .await
     }
+
+    #[tool(description = "Search symbols globally")]
+    async fn stock_search(
+        &self,
+        params: Parameters<TvSearchParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let filter = params
+            .0
+            .filter
+            .as_deref()
+            .and_then(TvAssetFilter::from_name);
+        Self::json_result(
+            self.client
+                .search_symbols(&params.0.query, filter, params.0.offset),
+        )
+        .await
+    }
+
+    #[tool(description = "Get multi-timeframe technical analysis consensus")]
+    async fn stock_ta(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(self.client.get_technical_analysis(&params.0.symbol)).await
+    }
+
+    #[tool(description = "Get analyst consensus, price targets, and estimates")]
+    async fn stock_analyst(
+        &self,
+        params: Parameters<SymbolParam>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(self.client.get_analyst(&params.0.symbol)).await
+    }
+
+    #[tool(description = "Run market screener")]
+    async fn market_screener(
+        &self,
+        params: Parameters<TvScreenerParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let request = screener_request(&params.0);
+        Self::json_result(self.client.run_screener(&request)).await
+    }
+
+    #[tool(description = "Get market hotlist")]
+    async fn market_hotlist(
+        &self,
+        params: Parameters<TvHotlistParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let kind = TvHotlistKind::from_name(&params.0.kind).unwrap_or(TvHotlistKind::Gainers);
+        Self::json_result(self.client.get_hotlist(&params.0.market, kind, params.0.limit)).await
+    }
+
+    #[tool(description = "Get economic calendar events")]
+    async fn macro_calendar(
+        &self,
+        params: Parameters<TvCalendarParams>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(
+            self.client
+                .get_economic_calendar(&params.0.from, &params.0.to, &params.0.countries),
+        )
+        .await
+    }
+
+    #[tool(description = "Search indicators and strategies")]
+    async fn market_indicator_search(
+        &self,
+        params: Parameters<TvSearchParams>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(self.client.search_indicators(&params.0.query)).await
+    }
+
+    #[tool(description = "Get indicator specification")]
+    async fn market_indicator(
+        &self,
+        params: Parameters<TvIndicatorParams>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(
+            self.client
+                .get_indicator_spec(&params.0.id, &params.0.version),
+        )
+        .await
+    }
+
+    #[tool(description = "Get indicator time series")]
+    async fn market_indicator_series(
+        &self,
+        params: Parameters<TvStudyParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let options = chart_options(&params.0.timeframe, params.0.limit);
+        Self::json_result(
+            self.client.get_indicator_series(
+                &params.0.symbol,
+                &params.0.id,
+                &params.0.version,
+                &options,
+            ),
+        )
+        .await
+    }
+
+    #[tool(description = "Get strategy backtest report")]
+    async fn market_strategy(
+        &self,
+        params: Parameters<TvStudyParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let options = chart_options(&params.0.timeframe, params.0.limit);
+        Self::json_result(
+            self.client.get_strategy_report(
+                &params.0.symbol,
+                &params.0.id,
+                &params.0.version,
+                &options,
+            ),
+        )
+        .await
+    }
+
+    #[tool(description = "Replay chart bars from timestamp")]
+    async fn market_replay(
+        &self,
+        params: Parameters<TvReplayParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let options = chart_options(&params.0.timeframe, params.0.steps as usize);
+        Self::json_result(
+            self.client.get_chart_replay(
+                &params.0.symbol,
+                params.0.from,
+                params.0.steps,
+                &options,
+            ),
+        )
+        .await
+    }
+
+    #[tool(description = "Get saved chart drawings")]
+    async fn market_drawings(
+        &self,
+        params: Parameters<TvDrawingsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        Self::json_result(
+            self.client.get_chart_drawings(
+                &params.0.layout,
+                &params.0.symbol,
+                params.0.user_id,
+            ),
+        )
+        .await
+    }
 }
 
 #[tool_handler(
     name = "tenk-mcp",
-    instructions = "Chinese market data: stocks, ETFs, bonds, indices, boards, futures, options, financials, news, and market analytics"
+    instructions = "Chinese market data plus global analytics via TradingView when configured as a source"
 )]
 impl ServerHandler for TenkMCPServer {}
 
